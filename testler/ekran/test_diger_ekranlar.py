@@ -273,6 +273,42 @@ def test_calisan_ekle_belirsiz_hata_sonrasi_kapaninca_liste_tazelenir(hazirla, s
     assert len(kayit_oku('calisanlar.json')['calisanlar']) == 4
 
 
+def bekleyenleri_bekle(sayfa, sahte_github, adet):
+    """Bekletilen GitHub isteklerinin sayısı `adet`e ulaşana kadar bekler (en çok 5 sn)."""
+    for _ in range(100):
+        if sahte_github.bekleyen_sayisi >= adet:
+            return
+        sayfa.wait_for_timeout(50)
+    raise AssertionError(f'{adet} istek bekleniyordu, {sahte_github.bekleyen_sayisi} geldi')
+
+
+def test_calisan_eklerken_iki_kez_esc_ad_kaybolmaz(hazirla, sayfa, sahte_github, kayit_oku):
+    """F4: kayıt sürerken iki Esc (Chrome'da ikincisi engellenemez) pencereyi sayfadan atmaz; yazış düşerse
+    pencere yazılan adla yeniden açılır, hata pencerede yazar; aynı pencereden yeniden eklenir."""
+    hazirla()
+    sekmeye_git(sayfa, 'calisanlar')
+    pencere = calisan_ekle_ac(sayfa)
+    pencere.get_by_label('Ad soyad', exact=True).fill('Mehmet Kaya')
+    sahte_github.tut()
+    pencere.get_by_role('button', name='Ekle', exact=True).click()
+    bekleyenleri_bekle(sayfa, sahte_github, 1)  # taze çalışan listesi okunuyor
+    sayfa.keyboard.press('Escape')
+    sayfa.keyboard.press('Escape')
+    sahte_github.yazma_durumu = 500
+    sahte_github.birak()
+
+    expect(pencere).to_be_visible()
+    expect(pencere.get_by_text(ERISIM, exact=True)).to_be_visible()
+    expect(pencere.get_by_label('Ad soyad', exact=True)).to_have_value('Mehmet Kaya')
+    assert sayfa.locator('dialog').count() == 1  # tek pencere
+
+    sahte_github.yazma_durumu = None
+    pencere.get_by_role('button', name='Ekle', exact=True).click()
+    expect(pencere).to_have_count(0)
+    expect(adlar(sayfa)).to_have_count(4)
+    assert len([c for c in kayit_oku('calisanlar.json')['calisanlar'] if c['ad'] == 'Mehmet Kaya']) == 1
+
+
 def test_calisan_ekle_cift_tiklama_tek_kayit(hazirla, sayfa, sahte_github, kayit_oku):
     hazirla()
     sekmeye_git(sayfa, 'calisanlar')

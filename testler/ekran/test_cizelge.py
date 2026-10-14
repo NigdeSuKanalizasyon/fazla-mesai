@@ -584,3 +584,67 @@ def test_silme_belirsiz_hata_sonrasi_kapaninca_liste_tazelenir(hazirla, sayfa, s
     sayfa.keyboard.press('Escape')
     expect(form).to_have_count(0)
     expect(sayfa.get_by_text(BOS_AY, exact=True)).to_be_visible()
+
+
+def test_kayit_surerken_iki_kez_esc_girilenler_kaybolmaz(hazirla, sayfa, sahte_github, kayit_oku):
+    """F4: Chrome ikinci Esc'te (geri hareketi) iptal edilemeyen bir kapatma gönderir. Kayıt sürerken pencere
+    kapansa bile atılmaz; kayıt düşerse aynı girilenlerle yeniden açılır, hata formun üstünde yazar."""
+    hazirla()
+    form = mesai_ekle(sayfa)
+    doldur(form, calisanlar=('Ali Veli', 'Çağrı Işık'), neden='Gece arızası')
+    sahte_github.tut()
+    form.get_by_role('button', name='Kaydet').click()
+    bekleyenleri_bekle(sayfa, sahte_github, 1)
+    sayfa.keyboard.press('Escape')
+    sayfa.keyboard.press('Escape')
+    sahte_github.yazma_durumu = 500
+    sahte_github.birak()
+
+    expect(form).to_be_visible()
+    expect(form.get_by_text(ERISIM, exact=True)).to_be_visible()
+    expect(form.get_by_label('Mesai nedeni')).to_have_value('Gece arızası')
+    expect(form.get_by_label('Ali Veli')).to_be_checked()
+    expect(form.get_by_label('Çağrı Işık')).to_be_checked()
+    expect(form.get_by_label('Başlama', exact=True)).to_have_value('17:00')
+    expect(form.get_by_label('Bitiş', exact=True)).to_have_value('19:40')
+    assert sayfa.locator('dialog.pencere').count() == 1  # tek pencere
+
+    sahte_github.yazma_durumu = None  # aynı pencereden yeniden kaydedilir
+    form.get_by_role('button', name='Kaydet').click()
+    expect(form).to_have_count(0)
+    expect(satirlar(sayfa)).to_have_count(2)
+    assert len(kayit_oku('mesai/2026-10.json')['satirlar']) == 2
+
+
+def test_kayit_surerken_iki_kez_esc_kayit_basarirsa_pencere_kalkar(hazirla, sayfa, sahte_github):
+    hazirla()
+    form = mesai_ekle(sayfa)
+    doldur(form)
+    sahte_github.tut()
+    form.get_by_role('button', name='Kaydet').click()
+    bekleyenleri_bekle(sayfa, sahte_github, 1)
+    sayfa.keyboard.press('Escape')
+    sayfa.keyboard.press('Escape')
+    sahte_github.birak()
+    expect(bildirim(sayfa)).to_have_text('Kaydedildi')
+    expect(satirlar(sayfa)).to_have_count(1)
+    assert sayfa.locator('dialog').count() == 0  # kapanan pencere sayfada kalmadı
+
+
+def test_silerken_iki_kez_esc_hata_formda_yazar(hazirla, sayfa, sahte_github):
+    hazirla({'2026-10': [satir('s_sil', '2026-10-14', neden='Silinecek')]})
+    sayfa.locator('[data-satir="s_sil"]').click()
+    form = sayfa.get_by_role('dialog', name='Düzenle')
+    form.get_by_role('button', name='Sil').click()
+    sahte_github.tut()
+    sayfa.get_by_role('alertdialog', name='Bu satır silinsin mi?').get_by_role('button', name='Sil').click()
+    bekleyenleri_bekle(sayfa, sahte_github, 1)
+    for _ in range(4):  # onay penceresi de, altındaki form da kapanmaya zorlanır
+        sayfa.keyboard.press('Escape')
+    sahte_github.yazma_durumu = 500
+    sahte_github.birak()
+    expect(form).to_be_visible()
+    expect(form.get_by_text(ERISIM, exact=True)).to_be_visible()
+    expect(form.get_by_label('Mesai nedeni')).to_have_value('Silinecek')
+    assert sayfa.locator('dialog.onay').count() == 0  # onay penceresi sayfada kalmadı
+    expect(sayfa.locator('[data-satir="s_sil"]')).to_have_count(1)

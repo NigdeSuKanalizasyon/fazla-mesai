@@ -5,7 +5,9 @@
 // kapanınca odak açan düğmeye döner. Aynı ad ikinci kez kullanılamaz: karşılaştırma boşluklar kırpılıp
 // toLocaleLowerCase('tr') ile yapılır (Işık = ışık, İlker = ilker). Pasif çalışanların adları da sayılır.
 // Kayıt sürerken düğmeler pasiftir; hata olursa pencere açık kalır, ad durur, hata metni yazar. Bir yazış hata
-// verdiyse (GitHub'a yine de ulaşmış olabilir) pencere nasıl kapanırsa kapansın liste tazelenir.
+// verdiyse (GitHub'a yine de ulaşmış olabilir) pencere nasıl kapanırsa kapansın liste tazelenir. Kayıt sürerken
+// pencere yine de kapanırsa (Chrome'da art arda iki Esc ya da geri hareketi) sayfadan atılmaz: yazış düşerse
+// yazılan adla yeniden açılır ve hata içinde yazar; yazış biterse kaldırılır.
 // Ekranda yalnızca hataMetni() gösterilir.
 
 import { bosKutu, eleman, hataKutusu, pencereKabi, yerTutucu } from './ortak.js';
@@ -87,12 +89,19 @@ function adPenceresiAc({ baglam, baslik, dugme, mesgulMetni, ad = '', haricId = 
     else form.removeAttribute('aria-busy');
   }
 
+  // Açıksa kapatır ('close' olayı pencereyi kaldırır); kayıt sürerken kapanmışsa sayfadan kaldırır.
   function kapat() {
     if (pencere.open) pencere.close();
+    else pencere.remove();
   }
 
-  // Kayıt sürerken Esc yok sayılır, yani pencere bu noktada hep açıktır.
+  // Kayıt sürerken kapanan pencereyi (yazılan ad içinde durur) yeniden açar.
+  function yenidenAc() {
+    if (!pencere.open && pencere.isConnected) pencere.showModal();
+  }
+
   function sorunGoster(metin) {
+    yenidenAc();
     formHatasi.textContent = metin;
     formHatasi.focus();
   }
@@ -113,6 +122,7 @@ function adPenceresiAc({ baglam, baslik, dugme, mesgulMetni, ad = '', haricId = 
       const taze = await kayitlar.calisanlar();
       if (adKullanimda(taze, yeniAd, haricId)) {
         kilitle(false);
+        yenidenAc();
         alanHatasiGoster(AYNI_AD);
         kutu.focus();
         return;
@@ -133,6 +143,8 @@ function adPenceresiAc({ baglam, baslik, dugme, mesgulMetni, ad = '', haricId = 
 
   pencere.addEventListener('cancel', (olay) => { if (mesgul) olay.preventDefault(); });
   pencere.addEventListener('close', () => {
+    // Kayıt sürerken kapandıysa pencere sayfada kalır; yeniden açıldıktan sonra gelen eski olay da yok sayılır.
+    if (mesgul || pencere.open) return;
     pencere.remove();
     if (tazelenmeli) bitti();
   });

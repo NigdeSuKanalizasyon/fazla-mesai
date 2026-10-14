@@ -12,6 +12,9 @@
 // (kural pasif çalışanı SEÇMEYİ yasaklar), başka bir pasif çalışan seçilemez.
 // Kurallar kurallar.js'ten gelir (satirDenetle); süre sure.js'ten (fazlaMesaiDakika). Kayıt sürerken
 // düğme pasiftir; hata olursa pencere açık kalır, girilenler durur, hata metni formun üstünde yazar.
+// Kayıt ya da silme sürerken pencere yine de kapanabilir (Chrome'da art arda iki Esc ya da geri hareketi:
+// ikinci kapatma isteği engellenemez). O zaman pencere sayfadan atılmaz: yazış düşerse girilenlerle yeniden
+// açılır ve hata formun üstünde yazar; yazış biterse pencere kaldırılır.
 // Ekranda yalnızca hataMetni() gösterilir (KismiTasimaHatasi'nın mesajı da onun üzerinden gelir).
 
 import { satirDenetle, satirTemizle, NEDEN_SINIRI } from '../kurallar.js';
@@ -313,6 +316,7 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
       console.error(hata);
       tazelenmeli = true;
       kilitle(false);
+      yenidenAc();
       sorunGoster(hataMetni(hata));
       if (hata instanceof KismiTasimaHatasi) degisince({}); // satır iki ayda; liste hemen tazelensin
       return;
@@ -324,7 +328,7 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
     degisince(duzenleme ? {} : { ay: ayAnahtari(satirlar[0].tarih) });
   }
 
-  // Pencere açıksa formun üstünde; kapanmışsa (Esc ile kapanmış olabilir) alttaki bildirimde.
+  // Pencere açıksa formun üstünde; kapanmışsa (çalışan listesi gelmeden kapatılmış) alttaki bildirimde.
   function sorunGoster(metin) {
     if (!pencere.open) {
       bildir(metin);
@@ -348,8 +352,13 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
       </div>`;
     const [vazgec, sil] = onay.querySelectorAll('button');
     let siliniyor = false;
+    // Silme sürerken kapanan onay penceresi de sayfada kalır; silme bitince kaldırılır.
+    function onayiKaldir() {
+      if (onay.open) onay.close();
+      else onay.remove();
+    }
     onay.addEventListener('cancel', (olay) => { if (siliniyor) olay.preventDefault(); });
-    onay.addEventListener('close', () => onay.remove());
+    onay.addEventListener('close', () => { if (!siliniyor) onay.remove(); });
     vazgec.addEventListener('click', () => onay.close());
     sil.addEventListener('click', async () => {
       if (siliniyor) return;
@@ -364,13 +373,15 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
         tazelenmeli = true;
         mesgul = false;
         siliniyor = false;
-        onay.close();
+        onayiKaldir();
+        yenidenAc();
         sorunGoster(hataMetni(hata));
         return;
       }
       tazelenmeli = false; // aşağıda zaten tazelenir
       mesgul = false;
-      onay.close();
+      siliniyor = false;
+      onayiKaldir();
       kapat();
       bildir('Silindi');
       degisince({});
@@ -380,12 +391,22 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
   }
 
   // --- Açma, kapama ---
+  // Açıksa kapatır ('close' olayı pencereyi kaldırır); iş sürerken kapanmışsa sayfadan kaldırır.
   function kapat() {
     if (pencere.open) pencere.close();
+    else pencere.remove();
+  }
+
+  // İş sürerken kapanan pencereyi (girilenler içinde durur) yeniden açar.
+  function yenidenAc() {
+    if (!pencere.open && pencere.isConnected) pencere.showModal();
   }
 
   pencere.addEventListener('cancel', (olay) => { if (mesgul) olay.preventDefault(); });
   pencere.addEventListener('close', () => {
+    // İş sürerken kapandıysa pencere sayfada kalır (iş bitince ya kaldırılır ya yeniden açılır). Pencere
+    // yeniden açıldıktan sonra gelen eski bir 'close' olayı da yok sayılır.
+    if (mesgul || pencere.open) return;
     pencere.remove();
     if (tazelenmeli) degisince({});
   });
