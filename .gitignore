@@ -1,2 +1,5 @@
 .superpowers/
 node_modules/
+.pytest_cache/
+__pycache__/
+testler/ekran/cikti/
