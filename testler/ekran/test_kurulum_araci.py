@@ -4,7 +4,9 @@ Araçlar ES modülü içe aktarır; bu yüzden testte de http üzerinden (yerel 
 Veri dosyaları testte Node yardımcısıyla (testler/yardimci/veri-islem.mjs) şifrelenir/çözülür.
 """
 import json
+import re
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -336,6 +338,105 @@ def test_parola_degistir_geri_alma_da_olmazsa_yonlendirir(sayfa, adres, anahtar_
     degistir(sayfa)
     expect(sayfa.get_by_text('geri-getir', exact=False).first).to_be_visible(timeout=60000)
     expect(sayfa.get_by_text('Eski hâline döndürüldü.', exact=False)).to_have_count(0)
+
+
+ZAMAN = re.compile(r'-Tarih "(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)"')
+
+
+def sonraki_yazislari_dusur(sayfa, sahte_github, yol, ilk_kac=1):
+    """`yol` dosyasına ilk `ilk_kac` PUT sahte GitHub'a gider; sonrakiler (geri alma dahil) uygulanmadan 500 döner."""
+    sayac = {'put': 0}
+
+    def isle(route):
+        if route.request.method == 'PUT' and route.request.url.endswith('/' + yol):
+            sayac['put'] += 1
+            if sayac['put'] > ilk_kac:
+                route.fulfill(status=500, content_type='application/json', body='{"message":"Sahte hata"}')
+                return
+        sahte_github(route)
+
+    sayfa.route('https://api.github.com/**', isle)
+
+
+@pytest.mark.parametrize('yol,hata', [
+    ('calisanlar.json', 500),          # ilk dosya: ondan önce yazılmış başka dosya yok
+    ('mesai/2026-09.json', 500),       # ortadaki dosya
+    ('mesai/2026-10.json', 'iptal'),   # son dosya, bağlantı kopar
+])
+def test_parola_degistir_yazis_uygulandi_ama_hata_geldi(sayfa, adres, anahtar_dosyasi, sahte_github, yol, hata):
+    """GitHub yazışı yapıp hata (ya da kopan bağlantı) döndürür: o dosya da baştaki içeriğe dönmeli."""
+    once = depoya_koy(sahte_github, anahtar_dosyasi.metin)
+    sahte_github.uygulayip_hata_ver(yol, hata)
+    indirmeler = indirmeleri_say(sayfa)
+    sayfa.goto(adres + PAROLA_DEGISTIR)
+    degistir_doldur(sayfa)
+    degistir(sayfa)
+    dokunulan = list(VERI).index(yol) + 1  # bu dosyaya kadar olanlar (hata alan dahil) yeni parolayla yazılmıştı
+    mesaj = sayfa.locator('#hata')
+    expect(mesaj).to_contain_text(f'Yeni parolayla yazılmış {dokunulan} dosya eski hâline döndürüldü.', timeout=60000)
+    expect(mesaj).to_contain_text('hiçbir şey değişmedi')
+    expect(mesaj).not_to_contain_text('geri-getir')
+    assert depodaki(sahte_github) == once  # HER dosya baştaki içerikte, hata alan da
+    assert [i['yol'] for i in yazislar(sahte_github)].count(yol) == 2  # uygulanan yazış + geri yazış
+    assert indirmeler == []  # yeni anahtar.json verilmez; eskisi geçerli kalır
+    # Uygulama eski anahtarla hâlâ açılır
+    sayfa.goto(adres)
+    sayfa.get_by_label('Parola', exact=True).fill(ESKI)
+    sayfa.get_by_role('button', name='Giriş yap').click()
+    expect(sayfa.locator('nav.sekmeler')).to_be_visible()
+
+
+def test_parola_degistir_uygulanan_yazis_geri_alinamazsa_tarihle_yonlendirir(sayfa, adres, anahtar_dosyasi, sahte_github):
+    """Hata alan dosya uygulanmış, geri yazışı da olmuyor: ekran "hiçbir şey değişmedi" demez, tarih verir."""
+    yol = 'mesai/2026-09.json'
+    once = depoya_koy(sahte_github, anahtar_dosyasi.metin)
+    sahte_github.uygulayip_hata_ver(yol, 500)
+    sonraki_yazislari_dusur(sayfa, sahte_github, yol)  # ilk yazış uygulanır, geri yazışlar düşer
+    indirmeler = indirmeleri_say(sayfa)
+    once_zaman = datetime.now(timezone.utc).replace(microsecond=0)
+    sayfa.goto(adres + PAROLA_DEGISTIR)
+    degistir_doldur(sayfa)
+    degistir(sayfa)
+    mesaj = sayfa.locator('#hata')
+    expect(mesaj).to_contain_text('geri-getir', timeout=60000)
+    metin = mesaj.inner_text()
+    sonra_zaman = datetime.now(timezone.utc)
+    assert 'hiçbir şey değişmedi' not in metin and 'eski hâline döndürüldü' not in metin.lower()
+    assert f'yeni parolayla kalmış olabilirler: {yol}.' in metin  # yalnızca doğrulanamayan dosya sayılır
+    zaman = ZAMAN.search(metin)
+    assert zaman, metin
+    basladi = datetime.strptime(zaman.group(1), '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+    assert once_zaman <= basladi <= sonra_zaman  # işlemin başladığı an
+    sonra = depodaki(sahte_github)
+    assert sonra[yol] != once[yol]  # gerçekten yeni parolayla kaldı: ekran doğru söylüyor
+    assert all(sonra[y] == once[y] for y in VERI if y != yol)  # diğerleri geri alındı (ya da hiç yazılmadı)
+    assert indirmeler == []
+
+
+def test_parola_degistir_geri_alirken_baskasinin_yazdigina_dokunmaz(sayfa, adres, anahtar_dosyasi, sahte_github):
+    """Yazma yarıda kalınca bir dosyanın içeriği ne baştaki ne bizim yazdığımız: üzerine yazılmaz, ekran söyler."""
+    once = depoya_koy(sahte_github, anahtar_dosyasi.metin)
+    sahte_github.uygulayip_hata_ver('mesai/2026-09.json', 500)
+    sayac = {'put': 0}
+
+    def isle(route):
+        if route.request.method == 'PUT':
+            sayac['put'] += 1
+            if sayac['put'] == 3:  # araya biri girip ayarlar.json'ı değiştirir
+                sahte_github.dosyalar['ayarlar.json'] = {'icerik': '{"baska":"biri yazdı"}', 'sha': None}
+        sahte_github(route)
+
+    sayfa.route('https://api.github.com/**', isle)
+    sayfa.goto(adres + PAROLA_DEGISTIR)
+    degistir_doldur(sayfa)
+    degistir(sayfa)
+    mesaj = sayfa.locator('#hata')
+    expect(mesaj).to_contain_text('üzerlerine yazılmadı: ayarlar.json.', timeout=60000)
+    expect(mesaj).to_contain_text('geri-getir')
+    expect(mesaj).not_to_contain_text('hiçbir şey değişmedi')
+    sonra = depodaki(sahte_github)
+    assert sonra['ayarlar.json'] == '{"baska":"biri yazdı"}'  # ezilmedi
+    assert all(sonra[y] == once[y] for y in VERI if y != 'ayarlar.json')  # bizim yazdıklarımız geri alındı
 
 
 def test_parola_degistir_anahtar_okunamazsa_dosya_secilir(sayfa, adres, anahtar_dosyasi, sahte_github, tmp_path):

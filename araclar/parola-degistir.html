@@ -85,6 +85,7 @@
     const ANAHTAR_ADRESI = '../veri/anahtar.json';
     const EN_AZ_KARAKTER = 12;
     const ZAMAN_ASIMI = 15000; // ms
+    const GERI_ALMA_TURU = 2; // geri yazıp yeniden okuma en çok bu kadar tur
 
     const $ = (kimlik) => document.getElementById(kimlik);
     const form = $('form');
@@ -98,6 +99,7 @@
     let secilenKutu = null; // elle seçilen dosya (varsa o kullanılır)
     let yeniKutuMetni = null; // bitince indirilen dosya; "yeniden indir" için bellekte
     let yazmaBasladi = false; // bundan sonraki hata "hiçbir şey değişmedi" demez
+    let baslangic = null; // işlemin başladığı an (ISO, UTC); geri-getir.ps1 -Tarih için
 
     // Bir adım yapılamadı: metin kullanıcıya gösterilir (alan verilmişse o kutunun altında).
     class Durdur extends Error {
@@ -238,45 +240,115 @@
       return okunan;
     }
 
-    // Yazma yarıda kalırsa daha önce yazılanları baştaki içeriğe döndürür. Dönüş: döndürülemeyen yollar.
-    async function geriAl(depo, yazilan) {
-      const kalan = [];
-      for (const dosya of [...yazilan].reverse()) {
+    // Bir dosyanın veri deposundaki şu anki hali. durum:
+    //   'ayni'      baştaki içerikle aynı
+    //   'bizim'     baştaki değil ama yeni anahtarla açılıyor, yani bu işlemin yazdığı içerik
+    //   'baska'     ikisi de değil (başkası değiştirmiş ya da dosya silinmiş olabilir)
+    //   'okunamadi' okunamadı, bilinmiyor
+    async function simdikiDurum(depo, dosya, yeniAnahtar) {
+      let kayit;
+      try {
+        kayit = await depo.oku(dosya.yol);
+      } catch {
+        return { durum: 'okunamadi', sha: null };
+      }
+      if (kayit.icerik === dosya.icerik) return { durum: 'ayni', sha: kayit.sha };
+      if (kayit.icerik !== null) {
         try {
-          dosyaDurumu(dosya.yol, 'geri alınıyor…');
-          await depo.yaz(dosya.yol, dosya.icerik, dosya.yeniSha, `Parola değişikliği geri alındı: ${dosya.yol}`);
-          dosyaDurumu(dosya.yol, 'geri alındı');
-        } catch {
-          dosyaDurumu(dosya.yol, 'geri alınamadı', 'hatali');
-          kalan.push(dosya.yol);
+          await coz(yeniAnahtar, JSON.parse(kayit.icerik));
+          return { durum: 'bizim', sha: kayit.sha };
+        } catch { /* bizim yazdığımız değil */ }
+      }
+      return { durum: 'baska', sha: kayit.sha };
+    }
+
+    // Yazma yarıda kalınca çağrılır. Bir yazış hata yanıtı verse bile (zaman aşımı, kopan bağlantı, 5xx)
+    // GitHub'da uygulanmış olabilir; bu yüzden yazışına başlanmış HER dosya, hata alan da dahil, yeniden okunur.
+    // Baştaki içerikte değilse ve içerik bu işlemin yazdığıysa baştaki içerik, az önce okunan sha ile geri yazılır
+    // (başkasının yazdığı içeriğin üzerine yazılmaz). Sonunda hepsi bir daha okunup baştaki içerikle karşılaştırılır.
+    // Dönüş: { kalan: baştaki içeriğe döndüğü doğrulanamayanlar [{ dosya, durum }], geriAlinan: sayı }
+    async function eskiHaleGetir(depo, dokunulan, yeniAnahtar) {
+      const geriYazilan = new Set();
+      const denetle = async () => {
+        const sonuc = [];
+        for (const dosya of dokunulan) {
+          dosyaDurumu(dosya.yol, 'denetleniyor…');
+          sonuc.push({ dosya, ...await simdikiDurum(depo, dosya, yeniAnahtar) });
+        }
+        return sonuc;
+      };
+
+      let sonuc = await denetle();
+      for (let tur = 0; tur < GERI_ALMA_TURU; tur++) {
+        const yazilacak = sonuc.filter((s) => s.durum === 'bizim');
+        if (yazilacak.length === 0) break;
+        for (const { dosya, sha } of [...yazilacak].reverse()) {
+          geriYazilan.add(dosya.yol);
+          try {
+            dosyaDurumu(dosya.yol, 'geri alınıyor…');
+            await depo.yaz(dosya.yol, dosya.icerik, sha, `Parola değişikliği geri alındı: ${dosya.yol}`);
+          } catch { /* bu yazış da uygulanmış olabilir; sonucu aşağıdaki yeniden okuma gösterir */ }
+        }
+        sonuc = await denetle();
+      }
+
+      const kalan = [];
+      let geriAlinan = 0;
+      for (const s of sonuc) {
+        if (s.durum === 'ayni') {
+          const geriAlindi = geriYazilan.has(s.dosya.yol);
+          if (geriAlindi) geriAlinan += 1;
+          dosyaDurumu(s.dosya.yol, geriAlindi ? 'geri alındı' : 'değişmemiş', geriAlindi ? 'tamam' : '');
+        } else {
+          dosyaDurumu(s.dosya.yol, s.durum === 'okunamadi' ? 'denetlenemedi' : 'geri alınamadı', 'hatali');
+          kalan.push(s);
         }
       }
-      return kalan;
+      return { kalan, geriAlinan };
+    }
+
+    function geriGetirNotu() {
+      return 'Gerekirse her dosya için PowerShell\'de araclar/geri-getir.ps1 çalıştırın: '
+        + `-Yol <dosya> -Tarih "${baslangic}" (OKU.md'de anlatılıyor). `
+        + 'Tarih, parola değiştirmenin başladığı andır; araç dosyanın o andan önceki hâlini getirir.';
     }
 
     async function hepsiniYaz(depo, okunan, yeniAnahtar) {
-      const yazilan = [];
+      const dokunulan = []; // yazışına başlanan dosyalar; hata alan da burada, çünkü yazışı uygulanmış olabilir
+      let yazilan = 0;
       for (const dosya of okunan) {
         try {
           dosyaDurumu(dosya.yol, 'yazılıyor…');
           const yeniIcerik = JSON.stringify(await sifrele(yeniAnahtar, dosya.veri));
-          const { sha } = await depo.yaz(dosya.yol, yeniIcerik, dosya.sha, `Parola değiştirildi: ${dosya.yol}`);
-          yazilan.push({ ...dosya, yeniSha: sha });
+          dokunulan.push(dosya);
+          await depo.yaz(dosya.yol, yeniIcerik, dosya.sha, `Parola değiştirildi: ${dosya.yol}`);
+          yazilan += 1;
           dosyaDurumu(dosya.yol, 'yazıldı', 'tamam');
         } catch (hata) {
           dosyaDurumu(dosya.yol, 'yazılamadı', 'hatali');
-          asama('Yazma yarıda kaldı, yazılanlar geri alınıyor…');
-          const kalan = await geriAl(depo, yazilan);
+          asama('Yazma yarıda kaldı, dosyalar denetlenip eski hâline getiriliyor…');
+          const { kalan, geriAlinan } = await eskiHaleGetir(depo, dokunulan, yeniAnahtar);
           const neden = `${dosya.yol} yazılamadı (${githubHatasi(hata)}).`;
-          if (kalan.length > 0) {
-            throw new Durdur(`${neden} Geri alma tamamlanamadı; bu dosyalar yeni parolayla kaldı: ${kalan.join(', ')}. `
-              + 'araclar/geri-getir.ps1 ile eski haline getirin (OKU.md\'de anlatılıyor). Yeni anahtar.json verilmedi.');
+          if (kalan.length === 0) {
+            const durum = geriAlinan > 0
+              ? `Yeni parolayla yazılmış ${geriAlinan} dosya eski hâline döndürüldü.`
+              : 'Hiçbir dosya yeni parolayla yazılmış değildi.';
+            throw new Durdur(`${neden} ${durum} Dosyaların hepsi yeniden okunup denetlendi: baştaki içerikte, hiçbir şey değişmedi. `
+              + 'Yeni anahtar.json verilmedi; biraz sonra yeniden deneyin.');
           }
-          throw new Durdur(`${neden} Eski hâline döndürüldü. Yazılmış ${yazilan.length} dosya geri alındı; hiçbir şey değişmedi. `
-            + 'Yeni anahtar.json verilmedi; biraz sonra yeniden deneyin.');
+          const belirsiz = kalan.filter((k) => k.durum !== 'baska').map((k) => k.dosya.yol);
+          const baskasi = kalan.filter((k) => k.durum === 'baska').map((k) => k.dosya.yol);
+          let metin = `${neden} Geri alma tamamlanamadı.`;
+          if (belirsiz.length > 0) {
+            metin += ` Bu dosyaların baştaki içerikte olduğu doğrulanamadı, yeni parolayla kalmış olabilirler: ${belirsiz.join(', ')}.`;
+          }
+          if (baskasi.length > 0) {
+            metin += ` Bu dosyalar ne baştaki içerikte ne de yeni parolayla yazdığımız içerikte (başka biri değiştirmiş olabilir); üzerlerine yazılmadı: ${baskasi.join(', ')}.`;
+          }
+          throw new Durdur(`${metin} ${geriGetirNotu()} Yeni anahtar.json verilmedi.`);
         }
       }
-      return yazilan.length;
+      return yazilan;
     }
 
     async function degistir(eskiParola, yeniParola) {
@@ -287,6 +359,7 @@
       asama('Veri deposu denetleniyor…');
       await depo.depoyuDenetle();
 
+      baslangic = new Date().toISOString().replace(/\.\d+Z$/, 'Z'); // ilk dosya okunmadan önce
       asama('Dosyalar okunuyor…');
       const okunan = await hepsiniOku(depo, eskiAnahtar);
 
@@ -317,6 +390,7 @@
       yenidenIndir.hidden = true;
       yeniKutuMetni = null;
       yazmaBasladi = false;
+      baslangic = null;
 
       const eski = alanlar.eski.value;
       const yeni = alanlar.yeni.value;
@@ -348,7 +422,7 @@
         } else {
           console.error(hata);
           hataKutusu.textContent = yazmaBasladi
-            ? `${githubHatasi(hata)} Dosyaların bir kısmı yeni parolayla yazılmış olabilir; araclar/geri-getir.ps1 ile kontrol edin.`
+            ? `${githubHatasi(hata)} Dosyaların bir kısmı yeni parolayla yazılmış olabilir. ${geriGetirNotu()}`
             : `${githubHatasi(hata)} Hiçbir dosya değiştirilmedi.`;
         }
         asama('Durduruldu.');

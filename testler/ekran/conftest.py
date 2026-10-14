@@ -177,6 +177,9 @@ class SahteGitHub:
       * yazip_yanitla(durum, kez=1): sıradaki kez PUT dosyaya UYGULANIR ama yanıtı bu durumla döner
         (yazış GitHub'a ulaştı, yanıtı kayboldu: zaman aşımı/5xx).
       * yazinca_tut(): sıradaki PUT yanıtlandıktan sonra tut() (kayıttan sonraki okumalar bekletilir).
+      * uygulayip_hata_ver(yol, durum=500, kez=1): o dosyaya sıradaki kez PUT GERÇEKTEN uygulanır (içerik ve sha
+        değişir), sonra istemciye hata döner: durum bir HTTP kodu ya da 'iptal' (bağlantı kopar). Zaman aşımı
+        ya da kopan bağlantıda GitHub'ın yazışı yapıp yanıtı ulaştıramaması durumunu taklit eder.
       * tut() / birak(): tut()'tan sonra gelen istekler bekletilir, birak() hepsini sırayla yanıtlar.
       * baglam.set_offline(True) iken istekler 'internetdisconnected' ile düşer.
 
@@ -192,6 +195,7 @@ class SahteGitHub:
         self.depo_durumu = None
         self.yazma_durumu = None
         self.yazma_durumlari = {}
+        self._uygula_hata = {}  # yol -> sıradaki PUT'ların "uygula, sonra şu hatayı ver" listesi
         self._ag = ag
         self._yazip_yanitla = []
         self._yazinca_tut = False
@@ -215,6 +219,13 @@ class SahteGitHub:
 
     def yazinca_tut(self):
         self._yazinca_tut = True
+
+    def uygulayip_hata_ver(self, yol, durum=500, kez=1):
+        if not (durum == 'iptal' or (isinstance(durum, int) and 400 <= durum <= 599)):
+            raise ValueError("durum 400-599 arasında bir tam sayı ya da 'iptal' olmalı.")
+        if not (isinstance(kez, int) and kez >= 1):
+            raise ValueError('kez 1 ya da daha büyük bir tam sayı olmalı.')
+        self._uygula_hata.setdefault(yol, []).extend([durum] * kez)
 
     def tut(self):
         if self._tutulan is None:
@@ -299,6 +310,15 @@ class SahteGitHub:
                 govde = {'message': f'Sahte hata {durum}'}
             else:
                 durum, govde = self._yaz(yol, istek.post_data)
+                sirada = self._uygula_hata.get(yol)
+                if sirada:
+                    hata = sirada.pop(0)
+                    if durum < 300:  # yazış uygulandı; istemci bunu öğrenemez
+                        if hata == 'iptal':
+                            route.abort('connectionreset')
+                        else:
+                            self._yanitla(route, hata, {'message': f'Sahte hata {hata}'})
+                        return
                 if self._yazip_yanitla:  # yazış uygulandı, yanıt kayboldu
                     durum = self._yazip_yanitla.pop(0)
                     govde = {'message': f'Sahte hata {durum}'}
