@@ -1,0 +1,146 @@
+/* ==========================================================================
+   Çıktı: FAZLA MESAİ ÇİZELGESİ (kâğıt formun aynısı, yatay A4, sayfada 20 satır)
+
+   Bu dosyada ölçü yoktur. Bütün uzunluklar ve yazı boyları uygulama/cikti.js
+   içindeki OLCULER'den gelir: ciktiHtml() her <section class="cikti-sayfa">
+   elementine style="--sayfa-genislik:297mm; ..." olarak yazar. PDF de aynı
+   nesneden çizilir, böylece yazdırma ve PDF aynı ölçüdedir.
+
+   Sütun sırası: TARİH | ADI SOYADI | BÖLÜMÜ | MESAİ NEDENİ | BAŞLAMA SAATİ |
+   BİTİŞ SAATİ | F. MESAİ SAATİ | İMZA   (--sutun-1 ... --sutun-8)
+   ========================================================================== */
+
+@page { size: A4 landscape; margin: 0 }
+
+/* --- Sayfa --------------------------------------------------------------- */
+
+.cikti-sayfa {
+  box-sizing: border-box;
+  width: var(--sayfa-genislik);
+  height: calc(var(--sayfa-yukseklik) - var(--sayfa-pay));
+  padding: var(--kenar-ust) var(--kenar-sag) var(--kenar-alt) var(--kenar-sol);
+  overflow: hidden;
+  background: #fff;
+  color: #000;
+  font-family: Figtree, Calibri, Carlito, "Segoe UI", Arial, sans-serif;
+  font-size: var(--yazi-govde);
+  line-height: var(--yazi-satir-araligi);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* --- Tablo: ızgara satırları -------------------------------------------- */
+
+.cikti-tablo { width: var(--tablo-genislik) }
+
+.cikti-satir {
+  display: grid;
+  grid-template-columns:
+    var(--sutun-1) var(--sutun-2) var(--sutun-3) var(--sutun-4)
+    var(--sutun-5) var(--sutun-6) var(--sutun-7) var(--sutun-8);
+}
+
+.cikti-bant { height: var(--baslik-yukseklik) }
+.cikti-sutunlar { height: var(--sutun-basligi-yukseklik) }
+.cikti-govde { height: var(--satir-yukseklik) }
+
+/* Başlık bandı: [boş: sütun 1] [başlık: sütun 2-6] [tanzim tarihi: sütun 7-8] */
+.cikti-bant > :nth-child(2) { grid-column: 2 / 7 }
+.cikti-bant > :nth-child(3) { grid-column: 7 / 9 }
+
+/* --- Hücreler ------------------------------------------------------------ */
+
+/* Çizgiler hücrelerin içinde (border-box) çizilir: sağ ve alt her hücrede,
+   sol yalnız satırın ilk hücresinde, üst yalnız ilk satırda. Böylece sütun ve
+   satır ölçüleri çizgi kalınlığından etkilenmez. */
+.cikti-satir > *,
+.cikti-imza > * {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 var(--hucre-bosluk);
+  overflow: hidden;
+  border-right: var(--cizgi) solid #000;
+  border-bottom: var(--cizgi) solid #000;
+}
+
+.cikti-satir > :first-child { border-left: var(--cizgi) solid #000 }
+.cikti-tablo > :first-child > * { border-top: var(--cizgi) solid #000 }
+
+.cikti-orta { justify-content: center; text-align: center }
+
+/* Gövde metni: hücrede sarar, en fazla iki satır görünür, taşmaz. */
+.cikti-metin {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.cikti-sure { font-size: var(--yazi-sure) }
+
+/* Sütun başlıkları: büyük harf, kalın, dar sütunlarda iki satıra sarar. */
+.cikti-sutunlar > * {
+  font-size: var(--yazi-sutun-basligi);
+  font-weight: 600;
+  overflow-wrap: normal;
+}
+
+/* Başlık bandı */
+.cikti-baslik {
+  justify-content: center;
+  font-size: var(--yazi-baslik);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cikti-tanzim {
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: var(--hucre-bosluk);
+  font-size: var(--yazi-tanzim);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* --- İmza tablosu: üstte başlıklar, altında isimler ---------------------- */
+
+.cikti-imza {
+  display: grid;
+  grid-template-columns: var(--imza-1) var(--imza-2) var(--imza-3) var(--imza-4);
+  grid-template-rows: var(--imza-baslik-yukseklik) var(--imza-isim-yukseklik);
+  width: max-content;
+  margin: var(--imza-ust-bosluk) 0 0 var(--imza-sol-bosluk);
+  font-size: var(--yazi-imza);
+}
+
+.cikti-imza > :nth-child(4n + 1) { border-left: var(--cizgi) solid #000 }
+.cikti-imza > :nth-child(-n + 4) { border-top: var(--cizgi) solid #000 }
+.cikti-imza-baslik { font-weight: 600 }
+
+/* --- Yazdırma ------------------------------------------------------------ */
+
+@media print {
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .cikti-sayfa {
+    page-break-after: always;
+    break-after: page;
+    break-inside: avoid;
+  }
+
+  /* Son sayfadan sonra boş sayfa çıkmasın. */
+  .cikti-sayfa:last-of-type {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}
