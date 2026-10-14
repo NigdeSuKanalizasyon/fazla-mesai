@@ -174,6 +174,9 @@ class SahteGitHub:
       * depo_durumu = 404 gibi: depo adresine (GET /repos/{o}/{r}) hep bu durum döner.
       * yazma_durumu = 401 gibi: bütün PUT'lara bu durum döner, dosyalara dokunulmaz.
       * yazma_durumlari = {'mesai/2026-10.json': 500} gibi: yalnızca o dosyaya PUT bu durumla düşer.
+      * uygulayip_hata_ver(yol, durum=500, kez=1): o dosyaya sıradaki kez PUT GERÇEKTEN uygulanır (içerik ve sha
+        değişir), sonra istemciye hata döner: durum bir HTTP kodu ya da 'iptal' (bağlantı kopar). Zaman aşımı
+        ya da kopan bağlantıda GitHub'ın yazışı yapıp yanıtı ulaştıramaması durumunu taklit eder.
       * tut() / birak(): tut()'tan sonra gelen istekler bekletilir, birak() hepsini sırayla yanıtlar.
       * baglam.set_offline(True) iken istekler 'internetdisconnected' ile düşer.
 
@@ -189,6 +192,7 @@ class SahteGitHub:
         self.depo_durumu = None
         self.yazma_durumu = None
         self.yazma_durumlari = {}
+        self._uygula_hata = {}  # yol -> sıradaki PUT'ların "uygula, sonra şu hatayı ver" listesi
         self._ag = ag
         self._kuyruk = []
         self._sayac = 0
@@ -202,6 +206,13 @@ class SahteGitHub:
         if not (isinstance(kez, int) and kez >= 1):
             raise ValueError('kez 1 ya da daha büyük bir tam sayı olmalı.')
         self._kuyruk.append({'durum': durum, 'kalan': kez})
+
+    def uygulayip_hata_ver(self, yol, durum=500, kez=1):
+        if not (durum == 'iptal' or (isinstance(durum, int) and 400 <= durum <= 599)):
+            raise ValueError("durum 400-599 arasında bir tam sayı ya da 'iptal' olmalı.")
+        if not (isinstance(kez, int) and kez >= 1):
+            raise ValueError('kez 1 ya da daha büyük bir tam sayı olmalı.')
+        self._uygula_hata.setdefault(yol, []).extend([durum] * kez)
 
     def tut(self):
         if self._tutulan is None:
@@ -286,6 +297,15 @@ class SahteGitHub:
                 self._yanitla(route, durum, {'message': f'Sahte hata {durum}'})
                 return
             durum, govde = self._yaz(yol, istek.post_data)
+            sirada = self._uygula_hata.get(yol)
+            if sirada:
+                hata = sirada.pop(0)
+                if durum < 300:  # yazış uygulandı; istemci bunu öğrenemez
+                    if hata == 'iptal':
+                        route.abort('connectionreset')
+                    else:
+                        self._yanitla(route, hata, {'message': f'Sahte hata {hata}'})
+                    return
             self._yanitla(route, durum, govde)
             return
         self._yanitla(route, 405, {'message': 'Method Not Allowed'})
