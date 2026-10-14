@@ -522,3 +522,65 @@ def test_pasif_calisanin_satiri_duzenlenir(hazirla, sayfa, sahte_github, kayit_o
     expect(form.get_by_text(PASIF, exact=True)).to_have_count(0)
     [s] = kayit_oku('mesai/2026-10.json')['satirlar']
     assert (s['id'], s['calisanId'], s['neden']) == ('s_sule', 'c_sule', 'Düzeltilmiş neden')
+
+
+# --- Son düzeltme turu -------------------------------------------------------
+
+def test_belirsiz_hatadan_sonra_vazgecince_liste_tazelenir(hazirla, sayfa, sahte_github, kayit_oku):
+    """F1: yazış GitHub'a ulaştı ama yanıtı 500 döndü. Kullanıcı Vazgeç'e basar: liste tazelenir, satır
+    görünür; yeni bir pencereyle aynı satırı yeniden girmesine gerek kalmaz, ikinci satır oluşmaz."""
+    hazirla()
+    form = mesai_ekle(sayfa)
+    doldur(form)
+    sahte_github.yazip_yanitla(500)
+    form.get_by_role('button', name='Kaydet').click()
+    expect(form.get_by_text(ERISIM, exact=True)).to_be_visible()
+    expect(sayfa.get_by_text(BOS_AY, exact=True)).to_be_visible()  # liste henüz eski
+
+    form.get_by_role('button', name='Vazgeç').click()
+    expect(form).to_have_count(0)
+    expect(satirlar(sayfa)).to_have_count(1)  # kapanınca liste tazelendi: satır kaydedilmiş
+    expect(satirlar(sayfa).first).to_contain_text('Ana hat arızası')
+    assert len(kayit_oku('mesai/2026-10.json')['satirlar']) == 1
+    yazis = len(yazislar(sahte_github))
+
+    sayfa.reload()  # uygulamaya yeniden girince de tek satır
+    liste_yuklendi(sayfa)
+    expect(satirlar(sayfa)).to_have_count(1)
+    assert len(yazislar(sahte_github)) == yazis  # kapanış ya da tazeleme bir şey yazmadı
+
+
+def test_belirsiz_hatadan_sonra_duzeltip_kaydedince_son_hali_saklanir(hazirla, sayfa, sahte_github, kayit_oku):
+    """Karar R18: aynı pencerede formu düzeltip yeniden kaydedince satırın son hali yazılır, kopya olmaz."""
+    hazirla()
+    form = mesai_ekle(sayfa)
+    doldur(form, calisanlar=('Ali Veli', 'Çağrı Işık'), neden='Yanlış neden')
+    sahte_github.yazip_yanitla(500)
+    form.get_by_role('button', name='Kaydet').click()
+    expect(form.get_by_text(ERISIM, exact=True)).to_be_visible()
+
+    form.get_by_label('Mesai nedeni').fill('Doğru neden')
+    form.get_by_label('Bitiş', exact=True).fill('20:10')
+    form.get_by_role('button', name='Kaydet').click()
+    expect(form).to_have_count(0)
+    expect(satirlar(sayfa)).to_have_count(2)
+    kayit = kayit_oku('mesai/2026-10.json')['satirlar']
+    assert sorted(s['calisanId'] for s in kayit) == ['c_ali', 'c_cagri']
+    assert {(s['neden'], s['bitis']) for s in kayit} == {('Doğru neden', '20:10')}
+
+
+def test_silme_belirsiz_hata_sonrasi_kapaninca_liste_tazelenir(hazirla, sayfa, sahte_github, kayit_oku):
+    """F1: silme yazışı ulaştı ama yanıtı kayboldu; pencere kapanınca liste tazelenir (satır gitmiş görünür)."""
+    hazirla({'2026-10': [satir('s_sil', '2026-10-14')]})
+    sayfa.locator('[data-satir="s_sil"]').click()
+    form = sayfa.get_by_role('dialog', name='Düzenle')
+    form.get_by_role('button', name='Sil').click()
+    sahte_github.yazip_yanitla(502)
+    sayfa.get_by_role('alertdialog', name='Bu satır silinsin mi?').get_by_role('button', name='Sil').click()
+    expect(form.get_by_text(ERISIM, exact=True)).to_be_visible()
+    assert kayit_oku('mesai/2026-10.json')['satirlar'] == []
+    expect(sayfa.locator('[data-satir="s_sil"]')).to_have_count(1)  # liste henüz eski
+
+    sayfa.keyboard.press('Escape')
+    expect(form).to_have_count(0)
+    expect(sayfa.get_by_text(BOS_AY, exact=True)).to_be_visible()

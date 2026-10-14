@@ -5,7 +5,9 @@
 // Eklemede bir ya da birden fazla aktif çalışan seçilir; her biri için ayrı satır açılır, hepsi tek
 // tarihte olduğu için tek yazışla (aynı ay) kaydedilir. Satır kimlikleri pencere açılınca çalışan başına
 // bir kez üretilir ve her denemede aynısı gönderilir: yanıtı kaybolmuş (ama GitHub'a ulaşmış) bir kayıttan
-// sonra Kaydet'e yeniden basılırsa Kayitlar o satırları yeniden eklemez, kopya oluşmaz.
+// sonra Kaydet'e yeniden basılırsa Kayitlar o satırları ikinci kez eklemez, son halini yazar (form arada
+// düzeltildiyse düzeltilmiş hali saklanır). Bir yazış hata verdiyse (GitHub'a yine de ulaşmış olabilir)
+// pencere nasıl kapanırsa kapansın liste tazelenir: kullanıcı satırı görür, yeni pencerede yeniden girmez.
 // Düzenlemede tek çalışan seçilir; satırın çalışanı sonradan pasife alınmışsa o çalışan kalabilir
 // (kural pasif çalışanı SEÇMEYİ yasaklar), başka bir pasif çalışan seçilemez.
 // Kurallar kurallar.js'ten gelir (satirDenetle); süre sure.js'ten (fazlaMesaiDakika). Kayıt sürerken
@@ -140,6 +142,7 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
 
   let tumCalisanlar = [];
   let mesgul = false; // kayıt ya da silme sürüyor
+  let tazelenmeli = false; // bir yazış hata verdi: kapanınca liste tazelenir (yazış GitHub'a ulaşmış olabilir)
   const satirKimlikleri = new Map(); // calisanId -> satır kimliği (bu pencere boyunca aynı)
 
   function satirKimligi(calisanId) {
@@ -308,11 +311,13 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
       else await kayitlar.satirlarEkle(satirlar.map((s) => ({ ...satirTemizle(s), id: satirKimligi(s.calisanId) })));
     } catch (hata) {
       console.error(hata);
+      tazelenmeli = true;
       kilitle(false);
       sorunGoster(hataMetni(hata));
-      if (hata instanceof KismiTasimaHatasi) degisince({}); // satır iki ayda; liste tazelensin
+      if (hata instanceof KismiTasimaHatasi) degisince({}); // satır iki ayda; liste hemen tazelensin
       return;
     }
+    tazelenmeli = false; // aşağıda zaten tazelenir
     kilitle(false);
     kapat();
     bildir('Kaydedildi');
@@ -356,12 +361,14 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
         await kayitlar.satirSil(satir);
       } catch (hata) {
         console.error(hata);
+        tazelenmeli = true;
         mesgul = false;
         siliniyor = false;
         onay.close();
         sorunGoster(hataMetni(hata));
         return;
       }
+      tazelenmeli = false; // aşağıda zaten tazelenir
       mesgul = false;
       onay.close();
       kapat();
@@ -378,7 +385,10 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
   }
 
   pencere.addEventListener('cancel', (olay) => { if (mesgul) olay.preventDefault(); });
-  pencere.addEventListener('close', () => pencere.remove());
+  pencere.addEventListener('close', () => {
+    pencere.remove();
+    if (tazelenmeli) degisince({});
+  });
   form.addEventListener('submit', (olay) => {
     olay.preventDefault();
     kaydet();

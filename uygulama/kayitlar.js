@@ -146,8 +146,10 @@ export class Kayitlar {
 
   // Aynı aydaki satırlar tek yazışta, farklı aylar ayrı yazışta eklenir. Eklenen satırları (id'li) girdi sırasıyla döndürür.
   // Satır id'siyle gelirse ('s_' + 8 karakter) o id kullanılır, gelmezse yeni üretilir. Dosyada aynı id'li satır zaten
-  // varsa yeniden eklenmez (var olana dokunulmaz): yanıtı kaybolmuş ama GitHub'a ulaşmış bir yazıştan sonra kullanıcı
-  // aynı satırları yeniden kaydederse kopya oluşmaz. Kimlikler çakışmada da değişmez: tekrar denenen yazış aynı satırları yazar.
+  // varsa yeni hali onun yerine (aynı sırada) yazılır, ikinci satır eklenmez: yanıtı kaybolmuş ama GitHub'a ulaşmış bir
+  // yazıştan sonra kullanıcı aynı satırları (belki düzeltip) yeniden kaydederse kopya oluşmaz, son hali saklanır.
+  // Kimlikler pencere başına üretildiği için başka bir satırın üstüne yazılmaz. Aynı çağrıda bir id iki kez gelirse
+  // sonuncusu yazılır. Kimlikler çakışmada da değişmez: tekrar denenen yazış aynı satırları yazar.
   async satirlarEkle(satirlar) {
     const eklenenler = satirlar.map(({ id, ...alanlar }) => {
       if (id === undefined || id === null) return { id: yeniKimlik('s'), ...alanlar };
@@ -167,14 +169,10 @@ export class Kayitlar {
         yol,
         (veri) => {
           const liste = listeAl(veri, 'satirlar', yol);
-          const kimlikler = new Set(liste.map((s) => s.id));
-          const yeniler = [];
-          for (const satir of grup) {
-            if (kimlikler.has(satir.id)) continue;
-            kimlikler.add(satir.id);
-            yeniler.push(satir);
-          }
-          return { ...veri, satirlar: [...liste, ...yeniler] };
+          const gelenler = new Map(grup.map((satir) => [satir.id, satir])); // aynı id iki kez: sonuncusu
+          const varolanlar = new Set(liste.map((s) => s.id));
+          const yeniler = [...gelenler.values()].filter((satir) => !varolanlar.has(satir.id));
+          return { ...veri, satirlar: [...liste.map((s) => gelenler.get(s.id) ?? s), ...yeniler] };
         },
         { satirlar: [] },
       );

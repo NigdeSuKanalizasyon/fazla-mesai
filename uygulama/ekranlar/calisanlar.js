@@ -4,7 +4,8 @@
 // Ekleme ve ad düzeltme küçük bir pencerede (<dialog>) yapılır: klavye odağı içeride kalır, Esc kapatır,
 // kapanınca odak açan düğmeye döner. Aynı ad ikinci kez kullanılamaz: karşılaştırma boşluklar kırpılıp
 // toLocaleLowerCase('tr') ile yapılır (Işık = ışık, İlker = ilker). Pasif çalışanların adları da sayılır.
-// Kayıt sürerken düğmeler pasiftir; hata olursa pencere açık kalır, ad durur, hata metni yazar.
+// Kayıt sürerken düğmeler pasiftir; hata olursa pencere açık kalır, ad durur, hata metni yazar. Bir yazış hata
+// verdiyse (GitHub'a yine de ulaşmış olabilir) pencere nasıl kapanırsa kapansın liste tazelenir.
 // Ekranda yalnızca hataMetni() gösterilir.
 
 import { bosKutu, eleman, hataKutusu, pencereKabi, yerTutucu } from './ortak.js';
@@ -34,7 +35,7 @@ function adKullanimda(calisanlar, ad, haricId = null) {
 
 // adPenceresiAc({ baglam, baslik, dugme, mesgulMetni, ad?, haricId?, kaydet(ad), bitti() })
 //   kaydet  ad geçerli ve kullanılmıyorsa çağrılır (yazış); hata atarsa pencere açık kalır
-//   bitti   kayıttan sonra, pencere kapanınca çağrılır
+//   bitti   kayıttan sonra (ya da hata veren bir yazıştan sonra) pencere kapanınca çağrılır: liste tazelenir
 function adPenceresiAc({ baglam, baslik, dugme, mesgulMetni, ad = '', haricId = null, kaydet, bitti }) {
   const { kayitlar, hataMetni } = baglam;
   const k = `ap${++sayac}`;
@@ -68,6 +69,7 @@ function adPenceresiAc({ baglam, baslik, dugme, mesgulMetni, ad = '', haricId = 
   kutu.value = ad;
 
   let mesgul = false;
+  let tazelenmeli = false; // bir yazış hata verdi: kapanınca liste tazelenir
 
   function alanHatasiGoster(metin) {
     alanHatasi.textContent = metin ?? '';
@@ -118,17 +120,22 @@ function adPenceresiAc({ baglam, baslik, dugme, mesgulMetni, ad = '', haricId = 
       await kaydet(yeniAd);
     } catch (hata) {
       console.error(hata);
+      tazelenmeli = true;
       kilitle(false);
       sorunGoster(hataMetni(hata));
       return;
     }
+    tazelenmeli = false; // aşağıda zaten tazelenir
     kilitle(false);
     kapat();
     bitti();
   }
 
   pencere.addEventListener('cancel', (olay) => { if (mesgul) olay.preventDefault(); });
-  pencere.addEventListener('close', () => pencere.remove());
+  pencere.addEventListener('close', () => {
+    pencere.remove();
+    if (tazelenmeli) bitti();
+  });
   form.addEventListener('submit', (olay) => {
     olay.preventDefault();
     gonder();

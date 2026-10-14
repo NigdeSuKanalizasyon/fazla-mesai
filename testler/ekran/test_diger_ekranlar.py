@@ -19,6 +19,7 @@ CALISANLAR = {'calisanlar': [
 BOS_AY = 'Bu ay için kayıt yok.'
 AYNI_AD = 'Bu adda bir çalışan zaten var.'
 YETKI = "GitHub anahtarının süresi dolmuş. Anıl'a haber verin."
+ERISIM = "GitHub'a şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin."
 
 
 def satir(kimlik, tarih, calisan='c_ali', neden='Pompa arızası', baslama='17:00', bitis='19:40'):
@@ -254,6 +255,22 @@ def test_calisan_ekle_kayit_401(hazirla, sayfa, sahte_github):
     pencere.get_by_role('button', name='Ekle', exact=True).click()
     expect(pencere).to_have_count(0)
     expect(adlar(sayfa)).to_have_count(4)
+
+
+def test_calisan_ekle_belirsiz_hata_sonrasi_kapaninca_liste_tazelenir(hazirla, sayfa, sahte_github, kayit_oku):
+    """F1: yazış ulaştı ama yanıtı 500 döndü; Vazgeç'e basınca liste tazelenir, yeni çalışan görünür."""
+    hazirla()
+    sekmeye_git(sayfa, 'calisanlar')
+    pencere = calisan_ekle_ac(sayfa)
+    pencere.get_by_label('Ad soyad', exact=True).fill('Şule Işık')
+    sahte_github.yazip_yanitla(500)
+    pencere.get_by_role('button', name='Ekle', exact=True).click()
+    expect(pencere.get_by_text(ERISIM, exact=True)).to_be_visible()
+    expect(adlar(sayfa)).to_have_count(3)  # liste henüz eski
+    pencere.get_by_role('button', name='Vazgeç', exact=True).click()
+    expect(pencere).to_have_count(0)
+    expect(adlar(sayfa)).to_have_text(['Ali Veli', 'Çağrı Işık', 'Şule Işık', 'Şule Öztürk'])
+    assert len(kayit_oku('calisanlar.json')['calisanlar']) == 4
 
 
 def test_calisan_ekle_cift_tiklama_tek_kayit(hazirla, sayfa, sahte_github, kayit_oku):

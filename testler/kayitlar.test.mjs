@@ -286,23 +286,48 @@ test('satirlarEkle_verilen_kimligi_korur', async () => {
   assert.deepEqual((await dosyaCoz(sahte, EKIM)).satirlar.map((s) => s.id), ['s_verilen0', uretilen.id]);
 });
 
-test('satirlarEkle_dosyada_olan_kimligi_yeniden_eklemez', async () => {
+// Karar R18: dosyada aynı kimlikli satır varsa yeni hali onun yerine yazılır (kopya oluşmaz, yeri değişmez).
+// Kimlikler pencere başına üretildiği için bu güvenlidir; formda düzeltilip yeniden kaydedilen satırın son hali saklanır.
+test('satirlarEkle_dosyada_olan_kimligin_yerine_yeni_halini_yazar', async () => {
   const { sahte, kayitlar } = kur();
   const onceki = { id: 's_onceki00', ...satir({ neden: 'Önce yazılan' }) };
-  sahte.dosyalar.set(EKIM, { icerik: await sifreliIcerik({ satirlar: [onceki] }) });
+  const baska = { id: 's_baska000', ...satir({ neden: 'Başka satır', baslama: '20:00', bitis: '21:00' }) };
+  sahte.dosyalar.set(EKIM, { icerik: await sifreliIcerik({ satirlar: [onceki, baska] }) });
 
   const donen = await kayitlar.satirlarEkle([
     { id: 's_onceki00', ...satir({ neden: 'Yeniden gönderilen' }) },
     { id: 's_yeni0000', ...satir({ calisanId: CAGRI }) },
-    { id: 's_yeni0000', ...satir({ calisanId: CAGRI }) }, // aynı çağrıda iki kez
+    { id: 's_yeni0000', ...satir({ calisanId: CAGRI, neden: 'Son hali' }) }, // aynı çağrıda iki kez: sonuncusu
   ]);
   assert.deepEqual(donen.map((s) => s.id), ['s_onceki00', 's_yeni0000', 's_yeni0000']);
   const { satirlar } = await dosyaCoz(sahte, EKIM);
-  assert.deepEqual(satirlar.map((s) => s.id), ['s_onceki00', 's_yeni0000']);
-  assert.equal(satirlar[0].neden, 'Önce yazılan'); // var olan satıra dokunulmaz
+  assert.deepEqual(satirlar.map((s) => s.id), ['s_onceki00', 's_baska000', 's_yeni0000']);
+  assert.equal(satirlar[0].neden, 'Yeniden gönderilen'); // var olanın yerine yeni hali
+  assert.equal(satirlar[1].neden, 'Başka satır'); // başka satıra dokunulmaz
+  assert.equal(satirlar[2].neden, 'Son hali');
 
-  await kayitlar.satirlarEkle([{ id: 's_yeni0000', ...satir({ calisanId: CAGRI }) }]); // aynı çağrı tekrar
-  assert.equal((await dosyaCoz(sahte, EKIM)).satirlar.length, 2);
+  await kayitlar.satirlarEkle([{ id: 's_yeni0000', ...satir({ calisanId: CAGRI, neden: 'Düzeltildi' }) }]); // tekrar
+  const sonra = (await dosyaCoz(sahte, EKIM)).satirlar;
+  assert.equal(sonra.length, 3);
+  assert.equal(sonra[2].neden, 'Düzeltildi');
+});
+
+// Yanıtı kaybolan yazıştan sonra kullanıcı formu düzeltip yeniden kaydeder: tek satır, son haliyle.
+test('satirlarEkle_yaniti_kaybolan_yazistan_sonra_duzeltilen_hal_saklanir', async () => {
+  let dusur = true;
+  const { sahte, kayitlar } = kur({
+    araci: async (adres, secenek, sahteFetch) => {
+      const yanit = await sahteFetch(adres, secenek);
+      if (secenek.method !== 'PUT' || !dusur) return yanit;
+      dusur = false;
+      return new Response('{"message":"x"}', { status: 504 });
+    },
+  });
+  await hataBekle(kayitlar.satirlarEkle([{ id: 's_ali00000', ...satir({ neden: 'Yanlış' }) }]), 'erisim');
+  await kayitlar.satirlarEkle([{ id: 's_ali00000', ...satir({ neden: 'Doğru', bitis: '20:10' }) }]);
+  const { satirlar } = await dosyaCoz(sahte, EKIM);
+  assert.equal(satirlar.length, 1);
+  assert.deepEqual([satirlar[0].neden, satirlar[0].bitis], ['Doğru', '20:10']);
 });
 
 // Yazış GitHub'a ulaştı ama yanıtı kayboldu (zaman aşımı/5xx): kullanıcı aynı satırları yeniden kaydedince kopya olmaz.
