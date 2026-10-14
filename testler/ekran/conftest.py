@@ -13,6 +13,8 @@ Fixture'lar:
   ac()             uygulamayı açar
   giris_yap()      açar, parolayla girer, ana ekranı bekler
   kutu_uret()      başka parola/token ile token kutusu (anahtar.json içeriği) üretir
+  kayit_yaz()      kayıt dosyalarını (çözülmüş hali) uygulamanın anahtarıyla şifreleyip sahte GitHub'a koyar
+  kayit_oku()      sahte GitHub'daki bir kayıt dosyasını çözer (dosya yoksa None)
 
 Ağa hiç çıkılmaz: https://api.github.com/** ve veri/anahtar.json istekleri page.route ile
 yanıtlanır. Playwright, route ile yanıtlanan istekleri set_offline(True) iken de geçirir; bu yüzden
@@ -171,6 +173,7 @@ class SahteGitHub:
       * Authorization 'Bearer <token>' değilse 401 (token gerçekten çözülüp gönderildi mi?).
       * depo_durumu = 404 gibi: depo adresine (GET /repos/{o}/{r}) hep bu durum döner.
       * yazma_durumu = 401 gibi: bütün PUT'lara bu durum döner, dosyalara dokunulmaz.
+      * yazma_durumlari = {'mesai/2026-10.json': 500} gibi: yalnızca o dosyaya PUT bu durumla düşer.
       * tut() / birak(): tut()'tan sonra gelen istekler bekletilir, birak() hepsini sırayla yanıtlar.
       * baglam.set_offline(True) iken istekler 'internetdisconnected' ile düşer.
 
@@ -185,6 +188,7 @@ class SahteGitHub:
         self.istekler = []
         self.depo_durumu = None
         self.yazma_durumu = None
+        self.yazma_durumlari = {}
         self._ag = ag
         self._kuyruk = []
         self._sayac = 0
@@ -277,8 +281,9 @@ class SahteGitHub:
                 self._yanitla(route, 404, {'message': 'Not Found'})
             return
         if yontem == 'PUT':
-            if self.yazma_durumu is not None:
-                self._yanitla(route, self.yazma_durumu, {'message': f'Sahte hata {self.yazma_durumu}'})
+            durum = self.yazma_durumu if self.yazma_durumu is not None else self.yazma_durumlari.get(yol)
+            if durum is not None:
+                self._yanitla(route, durum, {'message': f'Sahte hata {durum}'})
                 return
             durum, govde = self._yaz(yol, istek.post_data)
             self._yanitla(route, durum, govde)
@@ -402,3 +407,47 @@ def giris_yap(sayfa, ac):
         expect(sayfa.locator('nav.sekmeler')).to_be_visible()
         return sayfa
     return giris_yap
+
+
+# --- Şifreli kayıt dosyaları -------------------------------------------------
+
+# Dosyalar sayfanın içinde, uygulamanın kendi sifre.js'iyle şifrelenir/çözülür: anahtar parolayla
+# ve anahtar.json'daki tuzla üretilir, yani uygulamanın girişte ürettiği anahtarın aynısıdır.
+SIFRELE = """async ({ parola, kutu, dosyalar }) => {
+  const s = await import('./uygulama/sifre.js');
+  const anahtar = await s.kutudanAnahtar(parola, JSON.parse(kutu));
+  const sonuc = {};
+  for (const [yol, veri] of Object.entries(dosyalar)) {
+    sonuc[yol] = typeof veri === 'string' ? veri : JSON.stringify(await s.sifrele(anahtar, veri));
+  }
+  return sonuc;
+}"""
+
+COZ = """async ({ parola, kutu, metin }) => {
+  const s = await import('./uygulama/sifre.js');
+  const anahtar = await s.kutudanAnahtar(parola, JSON.parse(kutu));
+  return s.coz(anahtar, JSON.parse(metin));
+}"""
+
+
+@pytest.fixture
+def kayit_yaz(sayfa, ac, adres, sahte_github, anahtar_dosyasi):
+    """kayit_yaz({'calisanlar.json': {...}, 'mesai/2026-10.json': {...}}). Değer metinse olduğu gibi
+    (şifresiz, bozuk dosya için) yazılır. Sayfa henüz açılmadıysa önce açılır (şifreleme sayfada yapılır)."""
+    def kayit_yaz(dosyalar):
+        if not sayfa.url.startswith(adres):
+            ac()
+        metinler = sayfa.evaluate(SIFRELE, {'parola': PAROLA, 'kutu': anahtar_dosyasi.metin, 'dosyalar': dosyalar})
+        for yol, metin in metinler.items():
+            sahte_github.dosyalar[yol] = {'icerik': metin, 'sha': None}
+    return kayit_yaz
+
+
+@pytest.fixture
+def kayit_oku(sayfa, sahte_github, anahtar_dosyasi):
+    def kayit_oku(yol):
+        kayit = sahte_github.dosyalar.get(yol)
+        if kayit is None:
+            return None
+        return sayfa.evaluate(COZ, {'parola': PAROLA, 'kutu': anahtar_dosyasi.metin, 'metin': kayit['icerik']})
+    return kayit_oku
