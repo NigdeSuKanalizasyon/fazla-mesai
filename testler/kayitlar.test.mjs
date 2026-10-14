@@ -273,11 +273,62 @@ test('satirlarEkle_var_olan_dosyaya_ekler_ve_bos_liste_istek_atmaz', async () =>
   assert.deepEqual((await kayitlar.ay('2026-10')).map((s) => s.id), [bir.id, iki.id]);
 });
 
-test('satirlarEkle_verilen_id_yok_sayilir', async () => {
-  const { kayitlar } = kur();
-  const [s] = await kayitlar.satirlarEkle([{ id: 's_sahte000', ...satir() }]);
-  assert.notEqual(s.id, 's_sahte000');
-  assert.match(s.id, /^s_[0-9a-z]{8}$/);
+// Görev 9 düzeltmesi: çağıranın verdiği kimlik korunur (form yeniden denemede aynı kimliği gönderir).
+test('satirlarEkle_verilen_kimligi_korur', async () => {
+  const { sahte, kayitlar } = kur();
+  const [verilen, uretilen] = await kayitlar.satirlarEkle([
+    { id: 's_verilen0', ...satir() },
+    satir({ calisanId: CAGRI }),
+  ]);
+  assert.equal(verilen.id, 's_verilen0');
+  assert.match(uretilen.id, /^s_[0-9a-z]{8}$/);
+  assert.notEqual(uretilen.id, 's_verilen0');
+  assert.deepEqual((await dosyaCoz(sahte, EKIM)).satirlar.map((s) => s.id), ['s_verilen0', uretilen.id]);
+});
+
+test('satirlarEkle_dosyada_olan_kimligi_yeniden_eklemez', async () => {
+  const { sahte, kayitlar } = kur();
+  const onceki = { id: 's_onceki00', ...satir({ neden: 'Önce yazılan' }) };
+  sahte.dosyalar.set(EKIM, { icerik: await sifreliIcerik({ satirlar: [onceki] }) });
+
+  const donen = await kayitlar.satirlarEkle([
+    { id: 's_onceki00', ...satir({ neden: 'Yeniden gönderilen' }) },
+    { id: 's_yeni0000', ...satir({ calisanId: CAGRI }) },
+    { id: 's_yeni0000', ...satir({ calisanId: CAGRI }) }, // aynı çağrıda iki kez
+  ]);
+  assert.deepEqual(donen.map((s) => s.id), ['s_onceki00', 's_yeni0000', 's_yeni0000']);
+  const { satirlar } = await dosyaCoz(sahte, EKIM);
+  assert.deepEqual(satirlar.map((s) => s.id), ['s_onceki00', 's_yeni0000']);
+  assert.equal(satirlar[0].neden, 'Önce yazılan'); // var olan satıra dokunulmaz
+
+  await kayitlar.satirlarEkle([{ id: 's_yeni0000', ...satir({ calisanId: CAGRI }) }]); // aynı çağrı tekrar
+  assert.equal((await dosyaCoz(sahte, EKIM)).satirlar.length, 2);
+});
+
+// Yazış GitHub'a ulaştı ama yanıtı kayboldu (zaman aşımı/5xx): kullanıcı aynı satırları yeniden kaydedince kopya olmaz.
+test('satirlarEkle_yaniti_kaybolan_yazis_tekrarlaninca_kopya_olmaz', async () => {
+  let dusur = true;
+  const { sahte, kayitlar } = kur({
+    araci: async (adres, secenek, sahteFetch) => {
+      const yanit = await sahteFetch(adres, secenek);
+      if (secenek.method !== 'PUT' || !dusur) return yanit;
+      dusur = false;
+      return new Response('{"message":"x"}', { status: 502 }); // yazış uygulandı, yanıt kayboldu
+    },
+  });
+  const satirlar = [{ id: 's_ali00000', ...satir() }, { id: 's_cagri000', ...satir({ calisanId: CAGRI }) }];
+  await hataBekle(kayitlar.satirlarEkle(satirlar), 'erisim');
+  assert.equal((await dosyaCoz(sahte, EKIM)).satirlar.length, 2); // ilk yazış aslında ulaşmıştı
+  await kayitlar.satirlarEkle(satirlar);
+  assert.deepEqual((await dosyaCoz(sahte, EKIM)).satirlar.map((s) => s.id), ['s_ali00000', 's_cagri000']);
+});
+
+test('satirlarEkle_bicimsiz_kimligi_reddeder', async () => {
+  const { sahte, kayitlar } = kur();
+  for (const id of ['', 'x', 'c_aaaaaaaa', 's_KUCUK000', 7]) {
+    await assert.rejects(kayitlar.satirlarEkle([satir(), { id, ...satir() }]), TypeError, JSON.stringify(id));
+  }
+  assert.equal(sahte.istekler.length, 0); // hiçbir şey yazılmadan önce denetlenir
 });
 
 test('satirGuncelle_ayni_ay_tek_yazis', async () => {

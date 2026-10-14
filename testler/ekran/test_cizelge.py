@@ -22,6 +22,9 @@ CALISANLAR = {'calisanlar': [
 BOS_AY = 'Bu ay için kayıt yok.'
 KURAL = "Bu saatlerde fazla mesai yok (hafta içi 18:00'den sonrası sayılır)."
 YETKI = "GitHub anahtarının süresi dolmuş. Anıl'a haber verin."
+ERISIM = "GitHub'a şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin."
+PASIF = 'Pasif çalışan seçilemez.'
+YAZDIR_TAKLIDI = 'window.print = () => { window.__yazdir = (window.__yazdir || 0) + 1; };'
 KISMI = 'Satır yeni aya eklendi ama eski aydan silinemedi. Eski aydaki kopyayı silin.'
 
 
@@ -33,9 +36,9 @@ def satir(kimlik, tarih, calisan='c_ali', neden='Pompa arızası', baslama='17:0
 @pytest.fixture
 def hazirla(sayfa, kayit_yaz, giris_yap):
     """Saati sabitler, çalışanları ve verilen ayların satırlarını yazar, girer, listenin yüklenmesini bekler."""
-    def hazirla(aylar=None, simdi=SIMDI):
+    def hazirla(aylar=None, simdi=SIMDI, calisanlar=CALISANLAR):
         sayfa.clock.set_fixed_time(simdi)
-        dosyalar = {'calisanlar.json': CALISANLAR}
+        dosyalar = {'calisanlar.json': calisanlar}
         for ay, satirlar in (aylar or {}).items():
             dosyalar[f'mesai/{ay}.json'] = {'satirlar': satirlar}
         kayit_yaz(dosyalar)
@@ -78,6 +81,15 @@ def yazislar(sahte_github):
 
 def bildirim(sayfa):
     return sayfa.locator('.bildirim')
+
+
+def bekleyenleri_bekle(sayfa, sahte_github, adet):
+    """Bekletilen GitHub isteklerinin sayısı `adet`e ulaşana kadar bekler (en çok 5 sn)."""
+    for _ in range(100):
+        if sahte_github.bekleyen_sayisi >= adet:
+            return
+        sayfa.wait_for_timeout(50)
+    raise AssertionError(f'{adet} istek bekleniyordu, {sahte_github.bekleyen_sayisi} geldi')
 
 
 # --- Brief'in testleri -------------------------------------------------------
@@ -417,3 +429,96 @@ def test_ekran_goruntuleri_tasma_yok(hazirla, sayfa):
     sayfa.screenshot(path=CIKTI / 'sil-onay-1280.png', animations='disabled')
     sayfa.set_viewport_size(GORUNUM)
     sayfa.screenshot(path=CIKTI / 'sil-onay-390.png', animations='disabled')
+
+
+# --- Düzeltme turu 1 ---------------------------------------------------------
+
+def test_kayittan_hemen_sonra_yazdir_yeni_satiri_basar(hazirla, sayfa, sahte_github):
+    sayfa.add_init_script(YAZDIR_TAKLIDI)
+    hazirla()
+    form = mesai_ekle(sayfa)
+    doldur(form, neden='Hemen basılan')
+    sahte_github.yazinca_tut()  # kayıttan sonraki okumalar (liste tazeleme) bekletilir
+    form.get_by_role('button', name='Kaydet').click()
+    expect(form).to_have_count(0)
+    bekleyenleri_bekle(sayfa, sahte_github, 2)  # liste tazelemesi: ay + çalışanlar
+    expect(sayfa.get_by_text(BOS_AY, exact=True)).to_be_visible()  # liste henüz tazelenmedi
+    sayfa.get_by_role('button', name='Yazdır').click()
+    bekleyenleri_bekle(sayfa, sahte_github, 5)  # Yazdır taze okur: ay + çalışanlar + ayarlar
+    sahte_github.birak()
+    sayfa.wait_for_function('window.__yazdir === 1')
+    expect(sayfa.locator('#yazdirma')).to_contain_text('Hemen basılan')
+    expect(satirlar(sayfa)).to_have_count(1)
+
+
+def test_yazdir_ve_pdf_baska_cihazin_satirini_da_alir(hazirla, sayfa, kayit_yaz):
+    sayfa.add_init_script(YAZDIR_TAKLIDI)
+    sayfa.add_init_script('delete Navigator.prototype.canShare; delete Navigator.prototype.share;')
+    hazirla({'2026-10': [satir('s_bu', '2026-10-14')]})
+    expect(satirlar(sayfa)).to_have_count(1)
+    # liste yüklendikten sonra başka bir cihaz aynı aya bir satır yazdı
+    kayit_yaz({'mesai/2026-10.json': {'satirlar': [
+        satir('s_bu', '2026-10-14'),
+        satir('s_obur', '2026-10-15', calisan='c_cagri', neden='Öbür telefondan'),
+    ]}})
+    sayfa.get_by_role('button', name='Yazdır').click()
+    sayfa.wait_for_function('window.__yazdir === 1')
+    expect(sayfa.locator('#yazdirma')).to_contain_text('Öbür telefondan')
+    expect(satirlar(sayfa)).to_have_count(2)  # liste de aynı okumayla tazelendi
+    expect(sayfa.locator('[data-satir="s_obur"]')).to_contain_text('Çağrı Işık')
+
+    kayit_yaz({'mesai/2026-10.json': {'satirlar': [satir('s_bu', '2026-10-14')]}})  # öbür satır silindi
+    with sayfa.expect_download():
+        sayfa.get_by_role('button', name='PDF / Gönder').click()
+    expect(sayfa.locator('[data-satir="s_obur"]')).to_have_count(0)  # PDF de taze okudu
+    expect(satirlar(sayfa)).to_have_count(1)
+
+
+def test_belirsiz_hata_sonrasi_tekrar_kopya_yok(hazirla, sayfa, sahte_github, kayit_oku):
+    hazirla()
+    form = mesai_ekle(sayfa)
+    doldur(form, calisanlar=('Ali Veli', 'Çağrı Işık'))
+    sahte_github.yazip_yanitla(500)  # yazış GitHub'a ulaşır ama yanıtı 500 döner
+    form.get_by_role('button', name='Kaydet').click()
+    expect(form.get_by_text(ERISIM, exact=True)).to_be_visible()
+    assert len(kayit_oku('mesai/2026-10.json')['satirlar']) == 2  # ilk yazış aslında kaydedilmişti
+
+    form.get_by_role('button', name='Kaydet').click()  # kullanıcı yeniden dener
+    expect(form).to_have_count(0)
+    expect(satirlar(sayfa)).to_have_count(2)
+    kayit = kayit_oku('mesai/2026-10.json')['satirlar']
+    assert sorted(s['calisanId'] for s in kayit) == ['c_ali', 'c_cagri']  # çalışan başına tek satır
+
+
+def test_pasif_calisanin_satiri_duzenlenir(hazirla, sayfa, sahte_github, kayit_oku):
+    calisanlar = {'calisanlar': [
+        {'id': 'c_ali', 'ad': 'Ali Veli', 'aktif': True},
+        {'id': 'c_cagri', 'ad': 'Çağrı Işık', 'aktif': False},
+        {'id': 'c_sule', 'ad': 'Şule Öztürk', 'aktif': False},
+    ]}
+    hazirla({'2026-10': [satir('s_sule', '2026-10-14', calisan='c_sule', neden='Eski nedn')]}, calisanlar=calisanlar)
+    sayfa.locator('[data-satir="s_sule"]').click()
+    form = sayfa.get_by_role('dialog', name='Düzenle')
+    expect(form.get_by_label('Şule Öztürk')).to_be_checked()  # satırın kendi (pasif) çalışanı
+    expect(form.get_by_label('Çağrı Işık')).to_have_count(0)  # başka pasif çalışan listede yok
+
+    # Başka bir pasif çalışan yine de seçilirse (ör. liste eskiyse) kural reddeder.
+    form.locator('.secim-listesi').evaluate("""(liste) => {
+      const etiket = document.createElement('label');
+      const kutu = document.createElement('input');
+      kutu.type = 'radio'; kutu.name = liste.querySelector('input').name; kutu.value = 'c_cagri';
+      etiket.append(kutu, 'Çağrı Işık (eski liste)');
+      liste.append(etiket);
+    }""")
+    form.get_by_label('Çağrı Işık (eski liste)').check()
+    form.get_by_role('button', name='Kaydet').click()
+    expect(form.get_by_text(PASIF, exact=True)).to_be_visible()
+    assert yazislar(sahte_github) == []
+
+    form.get_by_label('Şule Öztürk').check()  # satırın kendi çalışanı kalabilir
+    form.get_by_label('Mesai nedeni').fill('Düzeltilmiş neden')
+    form.get_by_role('button', name='Kaydet').click()
+    expect(form).to_have_count(0)
+    expect(form.get_by_text(PASIF, exact=True)).to_have_count(0)
+    [s] = kayit_oku('mesai/2026-10.json')['satirlar']
+    assert (s['id'], s['calisanId'], s['neden']) == ('s_sule', 'c_sule', 'Düzeltilmiş neden')

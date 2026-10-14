@@ -174,6 +174,9 @@ class SahteGitHub:
       * depo_durumu = 404 gibi: depo adresine (GET /repos/{o}/{r}) hep bu durum döner.
       * yazma_durumu = 401 gibi: bütün PUT'lara bu durum döner, dosyalara dokunulmaz.
       * yazma_durumlari = {'mesai/2026-10.json': 500} gibi: yalnızca o dosyaya PUT bu durumla düşer.
+      * yazip_yanitla(durum, kez=1): sıradaki kez PUT dosyaya UYGULANIR ama yanıtı bu durumla döner
+        (yazış GitHub'a ulaştı, yanıtı kayboldu: zaman aşımı/5xx).
+      * yazinca_tut(): sıradaki PUT yanıtlandıktan sonra tut() (kayıttan sonraki okumalar bekletilir).
       * tut() / birak(): tut()'tan sonra gelen istekler bekletilir, birak() hepsini sırayla yanıtlar.
       * baglam.set_offline(True) iken istekler 'internetdisconnected' ile düşer.
 
@@ -190,6 +193,8 @@ class SahteGitHub:
         self.yazma_durumu = None
         self.yazma_durumlari = {}
         self._ag = ag
+        self._yazip_yanitla = []
+        self._yazinca_tut = False
         self._kuyruk = []
         self._sayac = 0
         self._tutulan = None
@@ -202,6 +207,14 @@ class SahteGitHub:
         if not (isinstance(kez, int) and kez >= 1):
             raise ValueError('kez 1 ya da daha büyük bir tam sayı olmalı.')
         self._kuyruk.append({'durum': durum, 'kalan': kez})
+
+    def yazip_yanitla(self, durum, kez=1):
+        if not (isinstance(durum, int) and 200 <= durum <= 599):
+            raise ValueError('durum 200-599 arasında bir tam sayı olmalı.')
+        self._yazip_yanitla.extend([durum] * kez)
+
+    def yazinca_tut(self):
+        self._yazinca_tut = True
 
     def tut(self):
         if self._tutulan is None:
@@ -283,10 +296,16 @@ class SahteGitHub:
         if yontem == 'PUT':
             durum = self.yazma_durumu if self.yazma_durumu is not None else self.yazma_durumlari.get(yol)
             if durum is not None:
-                self._yanitla(route, durum, {'message': f'Sahte hata {durum}'})
-                return
-            durum, govde = self._yaz(yol, istek.post_data)
+                govde = {'message': f'Sahte hata {durum}'}
+            else:
+                durum, govde = self._yaz(yol, istek.post_data)
+                if self._yazip_yanitla:  # yazış uygulandı, yanıt kayboldu
+                    durum = self._yazip_yanitla.pop(0)
+                    govde = {'message': f'Sahte hata {durum}'}
             self._yanitla(route, durum, govde)
+            if self._yazinca_tut:
+                self._yazinca_tut = False
+                self.tut()
             return
         self._yanitla(route, 405, {'message': 'Method Not Allowed'})
 

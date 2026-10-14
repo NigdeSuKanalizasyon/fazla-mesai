@@ -4,7 +4,8 @@
 //
 // Satırlar Kayitlar.ay() sırasıyla (tarih, sonra başlama saati) gelir. Ay değişince yalnız liste
 // yenilenir; geç gelen eski bir yanıt yeni ayın listesinin üstüne yazılmaz.
-// Yazdır ve PDF ekranda görünen satırları kullanır; ayarlar (bölüm yazısı, imzalar) o an okunur.
+// Yazdır ve PDF ay, çalışanlar ve ayarları her seferinde GitHub'dan taze okur (başka cihazın yazdığı ya da
+// az önce kaydedilip listesi henüz tazelenmemiş satır da çıktıya girer); liste de aynı okumayla tazelenir.
 
 import { fazlaMesaiDakika, sureYaz } from '../sure.js';
 import { haftaGunu, istanbulSimdi, tarihYaz } from '../tarih.js';
@@ -109,8 +110,9 @@ function yazdirmaAlani() {
 
 export function ekranCiz(kok, baglam) {
   const { kayitlar, durum, bildir, hataMetni } = baglam;
-  let veri = null; // ekrandaki ay: { ay, satirlar, calisanlar }
-  let istek = 0; // son liste isteğinin sırası
+  let veri = null; // listede çizili ay: { ay, satirlar, calisanlar }
+  let istek = 0; // son başlatılan okumanın sırası
+  let cizilen = 0; // listeye en son çizilen okumanın sırası
 
   const ust = eleman('div', 'cizelge-ust');
   let cubuk = ayCubuguOlustur(baglam, { degisince: () => listeyiYukle() });
@@ -123,7 +125,10 @@ export function ekranCiz(kok, baglam) {
   const liste = eleman('div', 'cizelge-liste');
   kok.replaceChildren(ust, liste);
 
-  async function listeyiYukle() {
+  // Seçili ayı okur ve listeye çizer; okunanları döndürür. ayarlarla: ayarlar da aynı Promise.all'da okunur
+  // (Yazdır/PDF). Okumalar sırayla numaralanır: bir yanıt yalnızca hâlâ seçili aya aitse ve listeye ondan
+  // yeni bir okuma çizilmemişse çizilir (geç gelen eski yanıt yenisinin üstüne yazılmaz).
+  async function ayiOku({ ayarlarla = false } = {}) {
     const sira = ++istek;
     const ay = durum.ay;
     // Odak listedeki bir satırdaysa (pencere kapanınca oraya döner) yeni listede aynı satıra geçer.
@@ -133,28 +138,46 @@ export function ekranCiz(kok, baglam) {
       veri = null;
       liste.replaceChildren(yerTutucu());
     }
-    let sonuc;
+    const guncel = () => liste.isConnected && ay === durum.ay && sira > cizilen;
+    let satirlar;
+    let calisanlar;
+    let ayarlar;
     try {
-      const [satirlar, calisanlar] = await Promise.all([kayitlar.ay(ay), kayitlar.calisanlar()]);
-      sonuc = { ay, satirlar, calisanlar };
+      [satirlar, calisanlar, ayarlar] = await Promise.all([
+        kayitlar.ay(ay),
+        kayitlar.calisanlar(),
+        ayarlarla ? kayitlar.ayarlar() : null,
+      ]);
     } catch (hata) {
-      if (sira !== istek || !liste.isConnected) return;
-      console.error(hata);
-      veri = null;
-      const satir = eleman('p', 'ekran-hata', hataMetni(hata));
-      satir.setAttribute('role', 'alert');
-      liste.replaceChildren(satir);
-      liste.removeAttribute('aria-busy');
-      return;
+      // Yalnız en son okuma hata gösterir. Yazdır/PDF okuması düşerse listede bu ay duruyorsa o kalır
+      // (hata bildirimde yazar); liste boşsa (yer tutucu) hata listeye yazılır.
+      if (guncel() && sira === istek) {
+        liste.removeAttribute('aria-busy');
+        if (!(ayarlarla && veri?.ay === ay)) {
+          veri = null;
+          const satir = eleman('p', 'ekran-hata', hataMetni(hata));
+          satir.setAttribute('role', 'alert');
+          liste.replaceChildren(satir);
+        }
+      }
+      throw hata;
     }
-    if (sira !== istek || !liste.isConnected) return;
-    veri = sonuc;
-    liste.replaceChildren(sonuc.satirlar.length === 0 ? bosAy() : tabloOlustur(sonuc.satirlar, sonuc.calisanlar));
-    liste.removeAttribute('aria-busy');
-    if (odak) {
-      const ayni = liste.querySelector(`[data-satir="${CSS.escape(odak.dataset.satir)}"]`);
-      (ayni ?? ekleDugmesi).focus();
+    if (guncel()) {
+      cizilen = sira;
+      veri = { ay, satirlar, calisanlar };
+      liste.replaceChildren(satirlar.length === 0 ? bosAy() : tabloOlustur(satirlar, calisanlar));
+      if (sira === istek) liste.removeAttribute('aria-busy');
+      if (odak) {
+        const ayni = liste.querySelector(`[data-satir="${CSS.escape(odak.dataset.satir)}"]`);
+        (ayni ?? ekleDugmesi).focus();
+      }
     }
+    return { ay, satirlar, calisanlar, ayarlar };
+  }
+
+  // Liste okuması; hatası listede gösterilir.
+  function listeyiYukle() {
+    return ayiOku().catch((hata) => console.error(hata));
   }
 
   // Pencere kayıttan sonra çağırır. Eklenen satır başka aydaysa o aya geçilir (satır listede görünsün).
@@ -172,13 +195,10 @@ export function ekranCiz(kok, baglam) {
     mesaiFormuAc({ baglam, satir, calisanlar: veri?.calisanlar ?? null, degisince });
   }
 
-  // Ekrandaki ay yüklüyse onun satırları, değilse taze okuma; ayarlar her seferinde okunur.
+  // Çıktının girdisi: ay, çalışanlar ve ayarlar tek seferde taze okunur (liste de tazelenir).
   async function ciktiVerisi() {
-    const ay = durum.ay;
-    const [satirlar, calisanlar, ayarlar] = veri?.ay === ay
-      ? [veri.satirlar, veri.calisanlar, await kayitlar.ayarlar()]
-      : await Promise.all([kayitlar.ay(ay), kayitlar.calisanlar(), kayitlar.ayarlar()]);
-    return { ay, satirlar, calisanlar, ayarlar, tanzim: istanbulSimdi(new Date()).tarih };
+    const okunan = await ayiOku({ ayarlarla: true });
+    return { ...okunan, tanzim: istanbulSimdi(new Date()).tarih };
   }
 
   // İş sürerken ikinci basış yok sayılır. disabled yerine aria-disabled: klavye odağı düğmede kalır.

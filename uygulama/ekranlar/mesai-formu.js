@@ -3,7 +3,11 @@
 // odak pencereyi açan düğmeye döner.
 //
 // Eklemede bir ya da birden fazla aktif çalışan seçilir; her biri için ayrı satır açılır, hepsi tek
-// tarihte olduğu için tek yazışla (aynı ay) kaydedilir. Düzenlemede tek çalışan seçilir.
+// tarihte olduğu için tek yazışla (aynı ay) kaydedilir. Satır kimlikleri pencere açılınca çalışan başına
+// bir kez üretilir ve her denemede aynısı gönderilir: yanıtı kaybolmuş (ama GitHub'a ulaşmış) bir kayıttan
+// sonra Kaydet'e yeniden basılırsa Kayitlar o satırları yeniden eklemez, kopya oluşmaz.
+// Düzenlemede tek çalışan seçilir; satırın çalışanı sonradan pasife alınmışsa o çalışan kalabilir
+// (kural pasif çalışanı SEÇMEYİ yasaklar), başka bir pasif çalışan seçilemez.
 // Kurallar kurallar.js'ten gelir (satirDenetle); süre sure.js'ten (fazlaMesaiDakika). Kayıt sürerken
 // düğme pasiftir; hata olursa pencere açık kalır, girilenler durur, hata metni formun üstünde yazar.
 // Ekranda yalnızca hataMetni() gösterilir (KismiTasimaHatasi'nın mesajı da onun üzerinden gelir).
@@ -11,7 +15,7 @@
 import { satirDenetle, satirTemizle, NEDEN_SINIRI } from '../kurallar.js';
 import { fazlaMesaiDakika, sureYaz } from '../sure.js';
 import { ayAnahtari, haftaGunu, istanbulSimdi } from '../tarih.js';
-import { KismiTasimaHatasi } from '../kayitlar.js';
+import { KismiTasimaHatasi, yeniKimlik } from '../kayitlar.js';
 
 const GUN_ADLARI = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 const TARIH_BICIMI = /^\d{4}-\d{2}-\d{2}$/;
@@ -136,6 +140,18 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
 
   let tumCalisanlar = [];
   let mesgul = false; // kayıt ya da silme sürüyor
+  const satirKimlikleri = new Map(); // calisanId -> satır kimliği (bu pencere boyunca aynı)
+
+  function satirKimligi(calisanId) {
+    if (!satirKimlikleri.has(calisanId)) satirKimlikleri.set(calisanId, yeniKimlik('s'));
+    return satirKimlikleri.get(calisanId);
+  }
+
+  // Denetimde kullanılan çalışan listesi. Düzenlemede satırın kendi çalışanı pasif olsa da aktif sayılır.
+  function denetimCalisanlari() {
+    if (!duzenleme) return tumCalisanlar;
+    return tumCalisanlar.map((c) => (c.id === satir.calisanId ? { ...c, aktif: true } : c));
+  }
 
   // --- Başlangıç değerleri ---
   tarihKutusu.max = istanbulSimdi(new Date()).tarih;
@@ -151,7 +167,7 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
     const aktifler = tumCalisanlar.filter((c) => c.aktif).sort(adaGore);
     const secenekler = [...aktifler];
     if (duzenleme) {
-      // Satırın çalışanı sonradan pasife alınmışsa yine görünür (seçili); kaydederken kural uyarır.
+      // Satırın çalışanı sonradan pasife alınmışsa yine görünür (seçili) ve kalabilir.
       const mevcut = tumCalisanlar.find((c) => c.id === satir.calisanId);
       if (mevcut && !mevcut.aktif) secenekler.push(mevcut);
     }
@@ -276,8 +292,9 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
 
     const satirlar = adaylar();
     const simdi = new Date();
+    const denetimListesi = denetimCalisanlari();
     for (const aday of satirlar) {
-      const { gecerli, hatalar } = satirDenetle(aday, { simdi, calisanlar: tumCalisanlar });
+      const { gecerli, hatalar } = satirDenetle(aday, { simdi, calisanlar: denetimListesi });
       if (!gecerli) {
         for (const [alan, metin] of Object.entries(hatalar)) hataGoster(alan, metin);
         ilkHatayaOdaklan(hatalar);
@@ -288,7 +305,7 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
     kilitle(true);
     try {
       if (duzenleme) await kayitlar.satirGuncelle(satir, satirTemizle(satirlar[0]));
-      else await kayitlar.satirlarEkle(satirlar.map(satirTemizle));
+      else await kayitlar.satirlarEkle(satirlar.map((s) => ({ ...satirTemizle(s), id: satirKimligi(s.calisanId) })));
     } catch (hata) {
       console.error(hata);
       kilitle(false);

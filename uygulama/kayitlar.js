@@ -19,6 +19,7 @@ const AY_BICIMI = /^\d{4}-(?:0[1-9]|1[0-2])$/;
 const MESAI_YOLU = /^mesai\/(\d{4}-(?:0[1-9]|1[0-2]))\.json$/;
 const KIMLIK_HARFLERI = '0123456789abcdefghijklmnopqrstuvwxyz';
 const KIMLIK_UZUNLUGU = 8;
+const SATIR_KIMLIGI = /^s_[0-9a-z]{8}$/;
 
 export const VARSAYILAN_AYARLAR = Object.freeze({
   bolumYazisi: '',
@@ -144,9 +145,15 @@ export class Kayitlar {
   }
 
   // Aynı aydaki satırlar tek yazışta, farklı aylar ayrı yazışta eklenir. Eklenen satırları (id'li) girdi sırasıyla döndürür.
-  // Kimlikler çakışmada yeniden üretilmez: tekrar denenen yazış aynı satırları yazar.
+  // Satır id'siyle gelirse ('s_' + 8 karakter) o id kullanılır, gelmezse yeni üretilir. Dosyada aynı id'li satır zaten
+  // varsa yeniden eklenmez (var olana dokunulmaz): yanıtı kaybolmuş ama GitHub'a ulaşmış bir yazıştan sonra kullanıcı
+  // aynı satırları yeniden kaydederse kopya oluşmaz. Kimlikler çakışmada da değişmez: tekrar denenen yazış aynı satırları yazar.
   async satirlarEkle(satirlar) {
-    const eklenenler = satirlar.map(({ id: yoksay, ...alanlar }) => ({ id: yeniKimlik('s'), ...alanlar }));
+    const eklenenler = satirlar.map(({ id, ...alanlar }) => {
+      if (id === undefined || id === null) return { id: yeniKimlik('s'), ...alanlar };
+      if (typeof id !== 'string' || !SATIR_KIMLIGI.test(id)) throw new TypeError(`Satır kimliği geçersiz: ${String(id)}`);
+      return { id, ...alanlar };
+    });
     const aylar = new Map();
     for (const satir of eklenenler) {
       const ay = ayAnahtari(satir.tarih);
@@ -156,7 +163,21 @@ export class Kayitlar {
     for (const ay of aylar.keys()) mesaiYolu(ay); // hiçbir şey yazılmadan önce tümünü denetle
     for (const [ay, grup] of aylar) {
       const yol = mesaiYolu(ay);
-      await this.degistir(yol, (veri) => ({ ...veri, satirlar: [...listeAl(veri, 'satirlar', yol), ...grup] }), { satirlar: [] });
+      await this.degistir(
+        yol,
+        (veri) => {
+          const liste = listeAl(veri, 'satirlar', yol);
+          const kimlikler = new Set(liste.map((s) => s.id));
+          const yeniler = [];
+          for (const satir of grup) {
+            if (kimlikler.has(satir.id)) continue;
+            kimlikler.add(satir.id);
+            yeniler.push(satir);
+          }
+          return { ...veri, satirlar: [...liste, ...yeniler] };
+        },
+        { satirlar: [] },
+      );
     }
     return eklenenler;
   }
