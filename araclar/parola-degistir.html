@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F3F6F4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F1C19" media="(prefers-color-scheme: dark)">
+  <meta name="referrer" content="no-referrer">
+  <title>Fazla Mesai — Parola değiştir</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="../simge-192.png">
+  <link rel="stylesheet" href="arac.css">
+</head>
+<body>
+  <!-- Ağ isteği yalnızca iki yere gider: ../veri/anahtar.json (bu sitenin kendi dosyası) ve veri
+       deposunun GitHub API'si. Parolalar hiçbir yere gönderilmez; token yalnızca bellekte durur. -->
+  <main class="sayfa">
+    <svg class="isaret" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <rect width="64" height="64" rx="16" fill="#1F6B4F"/>
+      <path d="M0 32H64" stroke="#FFFFFF" stroke-opacity=".32" stroke-width="8" fill="none"/>
+      <circle cx="32" cy="32" r="15" fill="#C49A2C"/>
+      <path d="M32 24.5v8l5.5 3.5" stroke="#16302B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+    <h1>Parola değiştir</h1>
+
+    <div class="not">
+      <p>Bu sayfa dosyaya çift tıklayarak açılmaz. Bir internet adresinden açılır: yayındaki site ya da bu bilgisayarda çalışan yerel sunucu (adımlar OKU.md'de).</p>
+      <p>Bütün kayıt dosyaları eski parolayla açılır, yeni parolayla yeniden şifrelenip veri deposuna yazılır. Önce hepsi okunur; bir dosya bile açılmazsa hiçbir şey yazılmaz.</p>
+      <p>Bittiğinde yeni <code>anahtar.json</code> iner. Onu veri klasörüne koyup yayınlayana kadar uygulama kayıtları açamaz; bu işi çalışma saatleri dışında yapın.</p>
+    </div>
+    <p class="not not-hata" id="dosya-uyarisi" hidden>Bu sayfa şu an dosyadan açılmış, bu yüzden çalışmaz. OKU.md'deki gibi yerel sunucudan açın.</p>
+
+    <form id="form" novalidate onsubmit="return false">
+      <div class="alan-grubu">
+        <label class="alan-etiketi" for="eski">Eski parola</label>
+        <input class="alan" id="eski" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="eski-hata">
+        <p class="alan-hata" id="eski-hata" role="alert"></p>
+      </div>
+      <div class="alan-grubu">
+        <label class="alan-etiketi" for="yeni">Yeni parola</label>
+        <input class="alan" id="yeni" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" aria-describedby="yeni-ipucu yeni-hata">
+        <p class="alan-ipucu" id="yeni-ipucu">En az 12 karakter. Tahmin edilmesi zor olsun; unutulursa kayıtlar hiçbir şekilde açılamaz.</p>
+        <p class="alan-hata" id="yeni-hata" role="alert"></p>
+      </div>
+      <div class="alan-grubu">
+        <label class="alan-etiketi" for="tekrar">Yeni parola (tekrar)</label>
+        <input class="alan" id="tekrar" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" aria-describedby="tekrar-hata">
+        <p class="alan-hata" id="tekrar-hata" role="alert"></p>
+      </div>
+
+      <details id="dosya-sec">
+        <summary>anahtar.json dosyasını kendim seçeceğim</summary>
+        <div class="alan-grubu">
+          <label class="alan-etiketi" for="dosya">Eski veri/anahtar.json dosyası</label>
+          <input id="dosya" type="file" accept=".json,application/json">
+        </div>
+      </details>
+      <p class="durum" id="kutu-durum" role="status"></p>
+
+      <button class="dugme dugme-ana" id="degistir" type="submit">Parolayı değiştir</button>
+    </form>
+
+    <section id="ilerleme-bolumu" hidden aria-live="polite">
+      <h2>Yapılanlar</h2>
+      <p class="durum" id="asama"></p>
+      <ul class="ilerleme" id="ilerleme"></ul>
+    </section>
+    <p class="hata" id="hata" role="alert"></p>
+    <div class="sonuc" id="ozet" role="status"></div>
+    <p><button class="dugme dugme-ikincil" id="yeniden-indir" type="button" hidden>anahtar.json dosyasını yeniden indir</button></p>
+  </main>
+
+  <script>
+    // Modül dosya adresinden yüklenemez; kullanıcı en azından nedenini görsün.
+    if (location.protocol === 'file:') document.getElementById('dosya-uyarisi').hidden = false;
+  </script>
+  <script type="module">
+    import { kutudanAnahtar, tokenCoz, tokenKutusuOlustur, sifrele, coz, SifreHatasi } from '../uygulama/sifre.js';
+    import { GitHubDepo } from '../uygulama/github.js';
+
+    const SAHIP = 'NigdeSuKanalizasyon';
+    const DEPO = 'fazla-mesai-veri';
+    const TEK_DOSYALAR = ['calisanlar.json', 'ayarlar.json']; // henüz yazılmamış olabilirler
+    const MESAI_KLASORU = 'mesai';
+    const ANAHTAR_ADRESI = '../veri/anahtar.json';
+    const EN_AZ_KARAKTER = 12;
+    const ZAMAN_ASIMI = 15000; // ms
+
+    const $ = (kimlik) => document.getElementById(kimlik);
+    const form = $('form');
+    const alanlar = { eski: $('eski'), yeni: $('yeni'), tekrar: $('tekrar') };
+    const dugme = $('degistir');
+    const hataKutusu = $('hata');
+    const ozet = $('ozet');
+    const yenidenIndir = $('yeniden-indir');
+    let calisiyor = false;
+    let yayinKutusu = null; // sitenin kendi veri/anahtar.json'u
+    let secilenKutu = null; // elle seçilen dosya (varsa o kullanılır)
+    let yeniKutuMetni = null; // bitince indirilen dosya; "yeniden indir" için bellekte
+    let yazmaBasladi = false; // bundan sonraki hata "hiçbir şey değişmedi" demez
+
+    // Bir adım yapılamadı: metin kullanıcıya gösterilir (alan verilmişse o kutunun altında).
+    class Durdur extends Error {
+      constructor(metin, alan = null) {
+        super(metin);
+        this.alan = alan;
+      }
+    }
+
+    function hataYaz(ad, metin) {
+      $(`${ad}-hata`).textContent = metin;
+      if (metin === '') alanlar[ad].removeAttribute('aria-invalid');
+      else alanlar[ad].setAttribute('aria-invalid', 'true');
+    }
+
+    function kutuBicimiDogru(kutu) {
+      const metinMi = (deger) => typeof deger === 'string' && deger !== '';
+      return kutu !== null && typeof kutu === 'object' && kutu.surum === 1
+        && metinMi(kutu.tuz) && metinMi(kutu.iv) && metinMi(kutu.veri)
+        && Number.isInteger(kutu.tekrar) && kutu.tekrar > 0;
+    }
+
+    function indir(ad, metin) {
+      const dosya = new Blob([metin], { type: 'application/json' });
+      const adres = URL.createObjectURL(dosya);
+      const baglanti = document.createElement('a');
+      baglanti.href = adres;
+      baglanti.download = ad;
+      document.body.append(baglanti);
+      baglanti.click();
+      baglanti.remove();
+      setTimeout(() => URL.revokeObjectURL(adres), 10000);
+    }
+
+    // --- anahtar.json'u almak: önce sitenin kendisinden, olmazsa dosya seçilir ---------------
+
+    async function yayinKutusunuOku() {
+      const kontrol = new AbortController();
+      const zamanlayici = setTimeout(() => kontrol.abort(), ZAMAN_ASIMI);
+      try {
+        const yanit = await fetch(ANAHTAR_ADRESI, { cache: 'no-store', signal: kontrol.signal });
+        if (!yanit.ok) throw new Error(`HTTP ${yanit.status}`);
+        const kutu = JSON.parse(await yanit.text());
+        if (!kutuBicimiDogru(kutu)) throw new Error('biçim geçersiz');
+        return kutu;
+      } finally {
+        clearTimeout(zamanlayici);
+      }
+    }
+
+    const kutuSozu = yayinKutusunuOku().then(
+      (kutu) => {
+        yayinKutusu = kutu;
+        $('kutu-durum').textContent = 'Yayındaki veri/anahtar.json okundu.';
+      },
+      () => {
+        $('kutu-durum').textContent = 'veri/anahtar.json okunamadı. Eski anahtar.json dosyasını aşağıdan kendiniz seçin.';
+        $('dosya-sec').open = true;
+      },
+    );
+
+    $('dosya').addEventListener('change', async (olay) => {
+      const [dosya] = olay.target.files;
+      secilenKutu = null;
+      if (!dosya) return;
+      try {
+        const kutu = JSON.parse(await dosya.text());
+        if (!kutuBicimiDogru(kutu)) throw new Error('biçim geçersiz');
+        secilenKutu = kutu;
+        $('kutu-durum').textContent = `Seçilen dosya kullanılacak: ${dosya.name}`;
+      } catch {
+        $('kutu-durum').textContent = 'Seçilen dosya geçerli bir anahtar.json değil.';
+      }
+    });
+
+    // --- ilerleme gösterimi -------------------------------------------------------------------
+
+    const satirlar = new Map();
+
+    function asama(metin) {
+      $('asama').textContent = metin;
+    }
+
+    function dosyaDurumu(yol, durum, sinif = '') {
+      let satir = satirlar.get(yol);
+      if (!satir) {
+        satir = document.createElement('li');
+        satir.append(Object.assign(document.createElement('span'), { textContent: yol }),
+          Object.assign(document.createElement('span'), { className: 'durumu' }));
+        $('ilerleme').append(satir);
+        satirlar.set(yol, satir);
+      }
+      satir.className = sinif;
+      satir.lastChild.textContent = durum;
+    }
+
+    function githubHatasi(hata) {
+      return hata?.name === 'GitHubHatasi' ? hata.message : 'Beklenmeyen bir sorun çıktı.';
+    }
+
+    // --- işlem ----------------------------------------------------------------------------------
+
+    async function eskiAnahtariCoz(eskiParola) {
+      await kutuSozu;
+      const kutu = secilenKutu ?? yayinKutusu;
+      if (!kutu) throw new Durdur('veri/anahtar.json alınamadı. Eski dosyayı yukarıdan seçip yeniden deneyin.');
+      try {
+        const anahtar = await kutudanAnahtar(eskiParola, kutu);
+        return { anahtar, token: await tokenCoz(anahtar, kutu) };
+      } catch (hata) {
+        if (hata instanceof SifreHatasi) throw new Durdur('Eski parola yanlış.', 'eski');
+        throw hata;
+      }
+    }
+
+    // Veri deposundaki bütün dosyaları okur ve eski anahtarla çözer. Biri bile olmazsa hiçbir şey yazılmadan durulur.
+    async function hepsiniOku(depo, eskiAnahtar) {
+      const yollar = [...TEK_DOSYALAR, ...await depo.liste(MESAI_KLASORU)];
+      for (const yol of yollar) dosyaDurumu(yol, 'bekliyor');
+      const okunan = [];
+      for (const yol of yollar) {
+        dosyaDurumu(yol, 'okunuyor…');
+        const { icerik, sha } = await depo.oku(yol);
+        if (icerik === null) { // calisanlar.json / ayarlar.json henüz yazılmamış
+          dosyaDurumu(yol, 'yok, atlandı');
+          continue;
+        }
+        let veri;
+        try {
+          veri = await coz(eskiAnahtar, JSON.parse(icerik));
+        } catch {
+          dosyaDurumu(yol, 'açılamadı', 'hatali');
+          throw new Durdur(`Bir dosya açılamadı: ${yol}. Hiçbir dosya değiştirilmedi.`);
+        }
+        okunan.push({ yol, sha, icerik, veri });
+        dosyaDurumu(yol, 'okundu');
+      }
+      return okunan;
+    }
+
+    // Yazma yarıda kalırsa daha önce yazılanları baştaki içeriğe döndürür. Dönüş: döndürülemeyen yollar.
+    async function geriAl(depo, yazilan) {
+      const kalan = [];
+      for (const dosya of [...yazilan].reverse()) {
+        try {
+          dosyaDurumu(dosya.yol, 'geri alınıyor…');
+          await depo.yaz(dosya.yol, dosya.icerik, dosya.yeniSha, `Parola değişikliği geri alındı: ${dosya.yol}`);
+          dosyaDurumu(dosya.yol, 'geri alındı');
+        } catch {
+          dosyaDurumu(dosya.yol, 'geri alınamadı', 'hatali');
+          kalan.push(dosya.yol);
+        }
+      }
+      return kalan;
+    }
+
+    async function hepsiniYaz(depo, okunan, yeniAnahtar) {
+      const yazilan = [];
+      for (const dosya of okunan) {
+        try {
+          dosyaDurumu(dosya.yol, 'yazılıyor…');
+          const yeniIcerik = JSON.stringify(await sifrele(yeniAnahtar, dosya.veri));
+          const { sha } = await depo.yaz(dosya.yol, yeniIcerik, dosya.sha, `Parola değiştirildi: ${dosya.yol}`);
+          yazilan.push({ ...dosya, yeniSha: sha });
+          dosyaDurumu(dosya.yol, 'yazıldı', 'tamam');
+        } catch (hata) {
+          dosyaDurumu(dosya.yol, 'yazılamadı', 'hatali');
+          asama('Yazma yarıda kaldı, yazılanlar geri alınıyor…');
+          const kalan = await geriAl(depo, yazilan);
+          const neden = `${dosya.yol} yazılamadı (${githubHatasi(hata)}).`;
+          if (kalan.length > 0) {
+            throw new Durdur(`${neden} Geri alma tamamlanamadı; bu dosyalar yeni parolayla kaldı: ${kalan.join(', ')}. `
+              + 'araclar/geri-getir.ps1 ile eski haline getirin (OKU.md\'de anlatılıyor). Yeni anahtar.json verilmedi.');
+          }
+          throw new Durdur(`${neden} Eski hâline döndürüldü. Yazılmış ${yazilan.length} dosya geri alındı; hiçbir şey değişmedi. `
+            + 'Yeni anahtar.json verilmedi; biraz sonra yeniden deneyin.');
+        }
+      }
+      return yazilan.length;
+    }
+
+    async function degistir(eskiParola, yeniParola) {
+      asama('Eski parola denetleniyor…');
+      const { anahtar: eskiAnahtar, token } = await eskiAnahtariCoz(eskiParola);
+
+      const depo = new GitHubDepo({ sahip: SAHIP, depo: DEPO, token });
+      asama('Veri deposu denetleniyor…');
+      await depo.depoyuDenetle();
+
+      asama('Dosyalar okunuyor…');
+      const okunan = await hepsiniOku(depo, eskiAnahtar);
+
+      asama('Yeni anahtar hazırlanıyor…');
+      const yeniKutu = await tokenKutusuOlustur(yeniParola, token);
+      const yeniAnahtar = await kutudanAnahtar(yeniParola, yeniKutu);
+      if (await tokenCoz(yeniAnahtar, yeniKutu) !== token) throw new Error('Yeni anahtar kendini doğrulayamadı.');
+
+      asama('Dosyalar yeni parolayla yazılıyor…');
+      yazmaBasladi = true;
+      const yazilan = await hepsiniYaz(depo, okunan, yeniAnahtar);
+
+      // Dosyalar artık yeni anahtarla şifreli: yeni anahtar.json kaybolmasın diye önce bellekte tutulur.
+      yeniKutuMetni = `${JSON.stringify(yeniKutu, null, 2)}\n`;
+      yenidenIndir.hidden = false;
+      asama('Bitti.');
+      ozet.textContent = `Tamam: ${yazilan} dosya yeni parolayla şifrelendi. anahtar.json indirildi. `
+        + 'Sıradaki adım: bu dosyayı Fazla Mesai klasöründeki veri klasörüne, eskisinin üzerine koyup yayınlayın. '
+        + 'Yayınlanana kadar uygulama kayıtları açamaz.';
+      indir('anahtar.json', yeniKutuMetni);
+    }
+
+    form.addEventListener('submit', async (olay) => {
+      olay.preventDefault();
+      if (calisiyor) return;
+      hataKutusu.textContent = '';
+      ozet.textContent = '';
+      yenidenIndir.hidden = true;
+      yeniKutuMetni = null;
+      yazmaBasladi = false;
+
+      const eski = alanlar.eski.value;
+      const yeni = alanlar.yeni.value;
+      const tekrar = alanlar.tekrar.value;
+      const kisa = [...yeni].length < EN_AZ_KARAKTER;
+      hataYaz('eski', eski === '' ? 'Eski parolayı yazın.' : '');
+      hataYaz('yeni', kisa ? 'Yeni parola en az 12 karakter olmalı.' : (yeni === eski ? 'Yeni parola eskisiyle aynı olamaz.' : ''));
+      hataYaz('tekrar', yeni !== tekrar ? 'Parolalar aynı değil.' : '');
+      if (form.querySelector('[aria-invalid="true"]')) {
+        form.querySelector('[aria-invalid="true"]').focus();
+        return;
+      }
+
+      calisiyor = true;
+      dugme.disabled = true;
+      dugme.textContent = 'Değiştiriliyor…';
+      $('ilerleme').replaceChildren();
+      satirlar.clear();
+      $('ilerleme-bolumu').hidden = false;
+      try {
+        await degistir(eski, yeni);
+        for (const alan of Object.values(alanlar)) alan.value = ''; // parolalar sayfada kalmasın
+      } catch (hata) {
+        if (hata instanceof Durdur && hata.alan !== null) {
+          hataYaz(hata.alan, hata.message); // örn. eski parola yanlış: kutunun altında
+          $('ilerleme-bolumu').hidden = true;
+        } else if (hata instanceof Durdur) {
+          hataKutusu.textContent = hata.message;
+        } else {
+          console.error(hata);
+          hataKutusu.textContent = yazmaBasladi
+            ? `${githubHatasi(hata)} Dosyaların bir kısmı yeni parolayla yazılmış olabilir; araclar/geri-getir.ps1 ile kontrol edin.`
+            : `${githubHatasi(hata)} Hiçbir dosya değiştirilmedi.`;
+        }
+        asama('Durduruldu.');
+      } finally {
+        calisiyor = false;
+        dugme.disabled = false;
+        dugme.textContent = 'Parolayı değiştir';
+      }
+    });
+
+    yenidenIndir.addEventListener('click', () => {
+      if (yeniKutuMetni !== null) indir('anahtar.json', yeniKutuMetni);
+    });
+
+    for (const [ad, alan] of Object.entries(alanlar)) alan.addEventListener('input', () => hataYaz(ad, ''));
+
+    // Yazma sürerken sekme kapanırsa dosyaların bir kısmı yeni, bir kısmı eski parolayla kalır.
+    addEventListener('beforeunload', (olay) => {
+      if (calisiyor) olay.preventDefault();
+    });
+  </script>
+</body>
+</html>

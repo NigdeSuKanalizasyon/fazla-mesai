@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F3F6F4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F1C19" media="(prefers-color-scheme: dark)">
+  <meta name="referrer" content="no-referrer">
+  <title>Fazla Mesai — Kurulum</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="../simge-192.png">
+  <link rel="stylesheet" href="arac.css">
+</head>
+<body>
+  <!-- Bu sayfa internete bağlanmaz: ağ isteği yapan hiçbir kod yok. Token ve parola yalnızca bu
+       sayfanın belleğinde durur; sonuç, şifreli bir anahtar.json dosyasıdır (indirilir). -->
+  <main class="sayfa">
+    <svg class="isaret" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <rect width="64" height="64" rx="16" fill="#1F6B4F"/>
+      <path d="M0 32H64" stroke="#FFFFFF" stroke-opacity=".32" stroke-width="8" fill="none"/>
+      <circle cx="32" cy="32" r="15" fill="#C49A2C"/>
+      <path d="M32 24.5v8l5.5 3.5" stroke="#16302B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+    <h1>Kurulum</h1>
+
+    <div class="not">
+      <p>Bu sayfa dosyaya çift tıklayarak açılmaz. Bir internet adresinden açılır: yayındaki site ya da bu bilgisayarda çalışan yerel sunucu (adımlar OKU.md'de).</p>
+      <p>Bu sayfa internete bağlanmaz. Token ve parola bu bilgisayardan dışarı çıkmaz; sonuç şifreli bir <code>anahtar.json</code> dosyasıdır.</p>
+      <p>Kayıtlar yazılmaya başladıktan sonra parolayı bu sayfayla değiştirme: kayıtlar açılmaz. Parola için parola-degistir sayfası var.</p>
+    </div>
+    <p class="not not-hata" id="dosya-uyarisi" hidden>Bu sayfa şu an dosyadan açılmış, bu yüzden çalışmaz. OKU.md'deki gibi yerel sunucudan açın.</p>
+
+    <form id="form" novalidate onsubmit="return false">
+      <div class="alan-grubu">
+        <label class="alan-etiketi" for="token">GitHub token</label>
+        <input class="alan" id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="token-hata">
+        <p class="alan-hata" id="token-hata" role="alert"></p>
+      </div>
+      <div class="alan-grubu">
+        <label class="alan-etiketi" for="parola">Parola</label>
+        <input class="alan" id="parola" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" aria-describedby="parola-ipucu parola-hata">
+        <p class="alan-ipucu" id="parola-ipucu">En az 12 karakter. Tahmin edilmesi zor olsun; unutulursa kayıtlar hiçbir şekilde açılamaz.</p>
+        <p class="alan-hata" id="parola-hata" role="alert"></p>
+      </div>
+      <div class="alan-grubu">
+        <label class="alan-etiketi" for="tekrar">Parola (tekrar)</label>
+        <input class="alan" id="tekrar" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" aria-describedby="tekrar-hata">
+        <p class="alan-hata" id="tekrar-hata" role="alert"></p>
+      </div>
+      <details id="yenileme">
+        <summary>Token'ı yeniliyorum (kayıtlar zaten var)</summary>
+        <p class="alan-ipucu">Yalnızca GitHub token'ı yenilenirken: eski <code>anahtar.json</code> dosyasını seçin ve parola alanlarına aynı parolayı yazın. Böylece kayıtlar olduğu gibi açılır. İlk kurulumda burayı boş bırakın.</p>
+        <div class="alan-grubu">
+          <label class="alan-etiketi" for="dosya">Mevcut anahtar.json dosyası</label>
+          <input id="dosya" type="file" accept=".json,application/json" aria-describedby="dosya-hata">
+          <p class="alan-hata" id="dosya-hata" role="alert"></p>
+        </div>
+      </details>
+      <button class="dugme dugme-ana" id="olustur" type="submit">Oluştur</button>
+    </form>
+
+    <p class="sonuc" id="sonuc" role="status"></p>
+    <p class="hata" id="hata" role="alert"></p>
+  </main>
+
+  <script>
+    // Modül dosya adresinden yüklenemez; kullanıcı en azından nedenini görsün.
+    if (location.protocol === 'file:') document.getElementById('dosya-uyarisi').hidden = false;
+  </script>
+  <script type="module">
+    import { tokenKutusuOlustur, kutudanAnahtar, tokenCoz, b64Coz, SifreHatasi, TEKRAR } from '../uygulama/sifre.js';
+
+    const EN_AZ_KARAKTER = 12;
+    const MESAJLAR = {
+      kisa: 'Parola en az 12 karakter olmalı.',
+      farkli: 'Parolalar aynı değil.',
+      tokenYok: 'GitHub token boş olamaz.',
+      dosyaGecersiz: 'Seçilen dosya geçerli bir anahtar.json değil.',
+      dosyaUymuyor: 'Parola bu anahtar.json dosyasına uymuyor.',
+    };
+
+    const form = document.getElementById('form');
+    const alanlar = {
+      token: document.getElementById('token'),
+      parola: document.getElementById('parola'),
+      tekrar: document.getElementById('tekrar'),
+    };
+    const dosyaAlani = document.getElementById('dosya');
+    const dugme = document.getElementById('olustur');
+    const sonuc = document.getElementById('sonuc');
+    const hataKutusu = document.getElementById('hata');
+    let calisiyor = false;
+    let mevcutKutu = null; // token yenilenirken: eski anahtar.json (aynı tuz ve tekrar korunur)
+
+    function hataYaz(ad, metin) {
+      document.getElementById(`${ad}-hata`).textContent = metin;
+      const alan = ad === 'dosya' ? dosyaAlani : alanlar[ad];
+      if (metin === '') alan.removeAttribute('aria-invalid');
+      else alan.setAttribute('aria-invalid', 'true');
+      if (ad === 'dosya' && metin !== '') document.getElementById('yenileme').open = true; // hata görünür olsun
+    }
+
+    function kutuBicimiDogru(kutu) {
+      const metinMi = (deger) => typeof deger === 'string' && deger !== '';
+      return kutu !== null && typeof kutu === 'object' && kutu.surum === 1
+        && metinMi(kutu.tuz) && metinMi(kutu.iv) && metinMi(kutu.veri)
+        && Number.isInteger(kutu.tekrar) && kutu.tekrar > 0;
+    }
+
+    dosyaAlani.addEventListener('change', async () => {
+      mevcutKutu = null;
+      hataYaz('dosya', '');
+      const [dosya] = dosyaAlani.files;
+      if (!dosya) return;
+      try {
+        const kutu = JSON.parse(await dosya.text());
+        if (kutuBicimiDogru(kutu)) mevcutKutu = kutu;
+        else hataYaz('dosya', MESAJLAR.dosyaGecersiz);
+      } catch {
+        hataYaz('dosya', MESAJLAR.dosyaGecersiz);
+      }
+    });
+
+    // Parola kısa mı, iki parola aynı mı, token var mı? Hepsi bir arada gösterilir.
+    function denetle(token, parola, tekrar) {
+      const kisa = [...parola].length < EN_AZ_KARAKTER;
+      const farkli = parola !== tekrar;
+      hataYaz('token', token === '' ? MESAJLAR.tokenYok : '');
+      hataYaz('parola', kisa ? MESAJLAR.kisa : '');
+      hataYaz('tekrar', farkli ? MESAJLAR.farkli : '');
+      return token !== '' && !kisa && !farkli;
+    }
+
+    function indir(ad, nesne) {
+      const dosya = new Blob([`${JSON.stringify(nesne, null, 2)}\n`], { type: 'application/json' });
+      const adres = URL.createObjectURL(dosya);
+      const baglanti = document.createElement('a');
+      baglanti.href = adres;
+      baglanti.download = ad;
+      document.body.append(baglanti);
+      baglanti.click();
+      baglanti.remove();
+      setTimeout(() => URL.revokeObjectURL(adres), 10000);
+    }
+
+    form.addEventListener('submit', async (olay) => {
+      olay.preventDefault();
+      if (calisiyor) return;
+      sonuc.textContent = '';
+      hataKutusu.textContent = '';
+      const token = alanlar.token.value.trim(); // yapıştırırken gelen boşluk/satır sonu atılır
+      const { value: parola } = alanlar.parola;
+      const { value: tekrar } = alanlar.tekrar;
+      const tamam = denetle(token, parola, tekrar);
+      const dosyaSecildi = dosyaAlani.files.length > 0;
+      if (dosyaSecildi && mevcutKutu === null) hataYaz('dosya', MESAJLAR.dosyaGecersiz); // yok sayılıp yeni tuz üretilmesin
+      if (!tamam || (dosyaSecildi && mevcutKutu === null)) {
+        form.querySelector('[aria-invalid="true"]')?.focus();
+        return;
+      }
+
+      calisiyor = true;
+      dugme.disabled = true;
+      dugme.textContent = 'Oluşturuluyor…';
+      try {
+        let secenek = { tekrar: TEKRAR };
+        if (mevcutKutu !== null) {
+          // Token yenileniyor: tuz ve tekrar aynı kalmalı, yoksa anahtar değişir ve kayıtlar açılmaz.
+          // Önce parolanın mevcut dosyaya uyduğu doğrulanır.
+          try {
+            await tokenCoz(await kutudanAnahtar(parola, mevcutKutu), mevcutKutu);
+          } catch (hata) {
+            if (!(hata instanceof SifreHatasi)) throw hata;
+            hataYaz('dosya', MESAJLAR.dosyaUymuyor);
+            return;
+          }
+          secenek = { tekrar: mevcutKutu.tekrar, tuz: b64Coz(mevcutKutu.tuz) };
+        }
+        const kutu = await tokenKutusuOlustur(parola, token, secenek);
+        indir('anahtar.json', kutu);
+        for (const alan of Object.values(alanlar)) alan.value = ''; // parola ve token sayfada kalmasın
+        const yenilendi = mevcutKutu !== null;
+        dosyaAlani.value = '';
+        mevcutKutu = null;
+        sonuc.textContent = yenilendi
+          ? 'anahtar.json indirildi (aynı parola, yeni token). Dosyayı veri klasöründeki eskisinin üzerine koyun; kayıtlar olduğu gibi açılır.'
+          : 'anahtar.json indirildi. Dosyayı Fazla Mesai klasörünün içindeki veri klasörüne koyun.';
+      } catch (hata) {
+        console.error(hata);
+        hataKutusu.textContent = 'Anahtar dosyası oluşturulamadı. Sayfayı yenileyip yeniden deneyin.';
+      } finally {
+        calisiyor = false;
+        dugme.disabled = false;
+        dugme.textContent = 'Oluştur';
+      }
+    });
+
+    for (const [ad, alan] of Object.entries(alanlar)) alan.addEventListener('input', () => hataYaz(ad, ''));
+  </script>
+</body>
+</html>

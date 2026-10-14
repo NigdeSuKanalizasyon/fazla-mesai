@@ -6,11 +6,26 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#F3F6F4" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0F1C19" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Fazla Mesai">
   <title>Fazla Mesai</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="simge-192.png">
+  <link rel="apple-touch-icon" href="simge-180.png">
   <link rel="stylesheet" href="stil.css">
   <script type="module">
     import { baslat } from './uygulama/baslat.js';
     baslat(document.getElementById('uygulama'));
+  </script>
+  <script>
+    // Servis çalışanı: sayfa dosyalarını cihazda saklar (sw.js). Kaydedilemese de uygulama çalışır.
+    if ('serviceWorker' in navigator) {
+      addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+          .catch((hata) => console.warn('Servis çalışanı kaydedilemedi.', hata));
+      });
+    }
   </script>
 </head>
 <body>
