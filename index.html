@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F3F6F4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F1C19" media="(prefers-color-scheme: dark)">
+  <title>Fazla Mesai</title>
+  <link rel="stylesheet" href="stil.css">
+  <script type="module">
+    import { baslat } from './uygulama/baslat.js';
+    baslat(document.getElementById('uygulama'));
+  </script>
+</head>
+<body>
+  <main id="uygulama" aria-busy="true"></main>
+  <noscript>Fazla Mesai için tarayıcıda JavaScript açık olmalı.</noscript>
+</body>
+</html>
