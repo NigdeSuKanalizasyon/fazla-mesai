@@ -1169,11 +1169,244 @@ html:has(dialog[open]) {
   }
 }
 
+/* --- Toplamlar, Çalışanlar, Ayarlar ----------------------------------------- */
+
+/* Üç ekranın ortak gövdesi: dar bir sütun, ortada. */
+.ekran-sutun {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
 .ayarlar {
+  max-width: 28rem;
+}
+
+/* Çalışanlar ve Ayarlar'ın başlığı: ay çubuğundaki ay adıyla aynı yazı. */
+.ekran-baslik {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  margin: 0;
+  font: 700 1.625rem/1.15 var(--yazitipi-baslik);
+  letter-spacing: -0.015em;
+  text-align: center;
+}
+
+/* Ekran okuyucuya okunur, gözle görülmez. */
+.sadece-okuyucu {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.hata-kutusu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.hata-kutusu .ekran-hata {
+  margin: 0;
+}
+
+/* Satırların tek yüzeyde, ince çizgilerle ayrıldığı liste. */
+.kart-liste {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--cizgi);
+  border-radius: var(--kose);
+  background: var(--yuzey);
+  list-style: none;
+}
+
+.kart-liste > li {
+  position: relative;
+  border-top: 1px solid var(--cizgi);
+}
+
+.kart-liste > li:first-child {
+  border-top: 0;
+}
+
+.toplamlar-liste .yer-tutucu {
+  height: 4.25rem;
+}
+
+.toplamlar-liste[aria-busy='true'] .kart-liste,
+.calisanlar-liste[aria-busy='true'] .kart-liste {
+  opacity: 0.6;
+}
+
+.toplam-satir {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.875rem 1rem;
+}
+
+.toplam-ad {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.toplam-yazi {
+  color: var(--boru);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.calisan-satir {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.875rem 1rem;
+}
+
+/* Pasif çalışan: soluk ad, bir ton geri çekilmiş zemin. */
+.calisan-pasif {
+  background: var(--zemin);
+}
+
+.calisan-bilgi {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.625rem;
+  min-width: 0;
+}
+
+.calisan-ad {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.calisan-pasif .calisan-ad {
+  color: var(--soluk);
+  font-weight: 500;
+}
+
+.calisan-bilgi .etiket-pasif {
+  flex: none;
+  margin-left: 0;
+}
+
+.calisan-eylemler {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.dugme-kucuk {
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  font-size: 0.9375rem;
+}
+
+.dugme-calisan-ekle {
+  gap: 0.5rem;
+}
+
+/* Çalışan ekle / Adını düzelt penceresi: silme onayıyla aynı küçük kutu. */
+.ad-formu {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  max-width: 28rem;
+}
+
+.ad-formu .onay-metni {
+  margin: 0;
+}
+
+.ad-formu[aria-busy='true'] {
+  cursor: progress;
+}
+
+.ayar-formu {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.ayar-formu[aria-busy='true'] .alan {
+  opacity: 0.6;
+}
+
+.alan-notu {
+  margin: 0;
+  color: var(--soluk);
+  font-size: 0.9375rem;
+}
+
+.imza-alanlari {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.imza-alanlari > legend {
+  margin-bottom: 0.75rem;
+  padding: 0;
+  font: 700 1.125rem/1.2 var(--yazitipi-baslik);
+}
+
+.cikis-bolumu {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--cizgi);
+}
+
+.cikis-bolumu .dugme {
+  width: 100%;
+}
+
+.surum {
+  margin: 0;
+  color: var(--soluk);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+@media (min-width: 48rem) {
+  .toplam-satir {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+
+  .toplam-yazi {
+    text-align: right;
+  }
+
+  .calisan-satir {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .calisan-eylemler {
+    flex: none;
+    flex-wrap: nowrap;
+  }
 }
 
 /* --- Bildirim (altta, 2,8 sn) ---------------------------------------------- */
