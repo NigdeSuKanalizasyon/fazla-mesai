@@ -204,8 +204,16 @@ test('stil_css_yazdirma_kurallari', () => {
   assert.match(css, /\.cikti-sayfa:last-of-type\s*\{[^}]*page-break-after:\s*auto/);
 });
 
+// stil.css'te önce ekran stilleri, en sonda çıktı bölümü durur (başlığı "Çıktı: FAZLA MESAİ
+// ÇİZELGESİ" olan yorumdan dosya sonuna kadar). Ekranın renk değişkenleri burada sayılmaz.
+function ciktiBolumu(css) {
+  const baslik = css.indexOf('Çıktı: FAZLA MESAİ ÇİZELGESİ');
+  assert.ok(baslik >= 0, 'stil.css çıktı bölümünün başlığı yok');
+  return css.slice(css.lastIndexOf('/*', baslik));
+}
+
 test('stil_css_degiskenleri_OLCULER_den_gelir', () => {
-  const css = readFileSync(new URL('../stil.css', import.meta.url), 'utf8');
+  const css = ciktiBolumu(readFileSync(new URL('../stil.css', import.meta.url), 'utf8'));
   const tanimli = new Set(olcuDegiskenleri().split(';').map((d) => d.split(':')[0]));
   const kullanilan = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g)].map((m) => m[1]);
   assert.ok(kullanilan.length > 20);

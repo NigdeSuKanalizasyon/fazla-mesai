@@ -1,4 +1,466 @@
 /* ==========================================================================
+   Ekran: kabuk, giriş, alttaki sekmeler, bildirim
+
+   Görünüm Uygulamalar mağazasıyla aynı dilde: aynı renk değişkenleri (koyu tema
+   dahil), başlıklarda Bricolage Grotesque 700, metinde Figtree. Yazı tipleri
+   depodan gelir (kutuphane/yazitipi/); dosya yoksa sistem yazı tipine düşer.
+
+   Not: --cizgi ekranda çizgi RENGİDİR. Çıktı bölümündeki --cizgi ise çizgi
+   KALINLIĞIDIR ve ciktiHtml() onu her .cikti-sayfa elementine satır içi yazar;
+   böylece çıktı sayfasının içinde her zaman kalınlık değeri geçerlidir. Çıktı
+   bölümü bu dosyanın sonunda durur (testler bu sırayı denetler).
+   ========================================================================== */
+
+/* --- Yazı tipleri -------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('kutuphane/yazitipi/figtree-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('kutuphane/yazitipi/figtree-latin-ext-400-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('kutuphane/yazitipi/figtree-latin-500-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('kutuphane/yazitipi/figtree-latin-ext-500-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('kutuphane/yazitipi/figtree-latin-600-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('kutuphane/yazitipi/figtree-latin-ext-600-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('kutuphane/yazitipi/bricolage-grotesque-latin-700-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('kutuphane/yazitipi/bricolage-grotesque-latin-ext-700-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* --- Renkler ve ortak ölçüler --------------------------------------------- */
+
+:root {
+  color-scheme: light;
+  --zemin: #F3F6F4;
+  --yuzey: #FFFFFF;
+  --murekkep: #16302B;
+  --soluk: #5A6E68;
+  --boru: #1F6B4F;
+  --dugum: #C49A2C;
+  --cizgi: #D5DED9;
+  --vurgu-zemin: #E6F0EB;
+  --odak: #2B7A9E;
+  --boru-uzeri: #FFFFFF;
+  --boru-basili: #185740;
+  --hata: #A8322A;
+  --golge: rgb(22 48 43 / 0.18);
+
+  --yazitipi-govde: 'Figtree', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --yazitipi-baslik: 'Bricolage Grotesque', 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --kose: 12px;
+  --kenar-payi: 1rem;
+  --sekme-yuksekligi: 4rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --zemin: #0F1C19;
+    --yuzey: #152622;
+    --murekkep: #E6EEEA;
+    --soluk: #9DB0A9;
+    --boru: #3FA27A;
+    --dugum: #D9B04A;
+    --cizgi: #24392F;
+    --vurgu-zemin: #1B3029;
+    --boru-uzeri: #0F1C19;
+    --boru-basili: #4FB58B;
+    --hata: #F08C80;
+    --golge: rgb(0 0 0 / 0.4);
+  }
+}
+
+/* --- Temel --------------------------------------------------------------- */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--zemin);
+  color: var(--murekkep);
+  font-family: var(--yazitipi-govde);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#uygulama *,
+#uygulama *::before,
+#uygulama *::after,
+.bildirim {
+  box-sizing: border-box;
+}
+
+#uygulama :focus-visible {
+  outline: 3px solid var(--odak);
+  outline-offset: 2px;
+}
+
+/* --- Düğmeler ve kutular ------------------------------------------------- */
+
+.dugme {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.25rem;
+  padding: 0 1.25rem;
+  border: 1.5px solid transparent;
+  border-radius: var(--kose);
+  font: 600 1rem/1.2 var(--yazitipi-govde);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dugme:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.dugme-ana {
+  background: var(--boru);
+  color: var(--boru-uzeri);
+}
+
+.dugme-ana:not(:disabled):active {
+  background: var(--boru-basili);
+}
+
+.dugme-ikincil {
+  background: var(--yuzey);
+  border-color: var(--cizgi);
+  color: var(--murekkep);
+}
+
+.dugme-ikincil:not(:disabled):active {
+  background: var(--vurgu-zemin);
+}
+
+@media (hover: hover) {
+  .dugme-ana:not(:disabled):hover { background: var(--boru-basili) }
+  .dugme-ikincil:not(:disabled):hover { background: var(--vurgu-zemin) }
+}
+
+.alan-etiketi {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.alan {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0 1rem;
+  border: 1.5px solid var(--cizgi);
+  border-radius: var(--kose);
+  background: var(--yuzey);
+  color: var(--murekkep);
+  font: 400 1.0625rem/1.3 var(--yazitipi-govde); /* 16px üstü: iPhone yakınlaştırmaz */
+}
+
+.alan[aria-invalid='true'] {
+  border-color: var(--hata);
+}
+
+/* Odak halkası kutunun kenarının üstüne biner: tek, kalın bir halka. */
+#uygulama .alan:focus-visible {
+  outline-offset: -1.5px;
+}
+
+/* --- Giriş, açılış ve açılış sorunu ---------------------------------------- */
+
+.giris {
+  display: grid;
+  justify-items: center;
+  min-height: 100dvh;
+  padding:
+    max(12vh, 2.5rem, env(safe-area-inset-top))
+    max(var(--kenar-payi), env(safe-area-inset-right))
+    max(2rem, env(safe-area-inset-bottom))
+    max(var(--kenar-payi), env(safe-area-inset-left));
+}
+
+.giris-kutusu {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 22rem;
+}
+
+.isaret {
+  display: block;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.giris-baslik {
+  margin: 0 0 2.25rem;
+  font: 700 2.75rem/1 var(--yazitipi-baslik);
+  letter-spacing: -0.025em;
+}
+
+.giris-formu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.giris-hata {
+  margin: 0.25rem 0 0;
+  color: var(--hata);
+  font-weight: 500;
+}
+
+.giris-hata:empty {
+  display: none;
+}
+
+.giris-kutusu > .dugme,
+.giris-formu > .dugme {
+  margin-top: 1rem;
+}
+
+.giris-durum {
+  margin: 0;
+  color: var(--soluk);
+}
+
+/* --- Kabuk: ekran alanı ve alttaki sekmeler -------------------------------- */
+
+.ekran {
+  width: 100%;
+  max-width: 60rem;
+  margin: 0 auto;
+  padding:
+    max(1.25rem, env(safe-area-inset-top))
+    max(var(--kenar-payi), env(safe-area-inset-right))
+    calc(var(--sekme-yuksekligi) + env(safe-area-inset-bottom) + 1.5rem)
+    max(var(--kenar-payi), env(safe-area-inset-left));
+}
+
+/* Girişten sonra odak buraya taşınır (ekran okuyucu yeni ekranda başlasın); halka çizilmez. */
+#uygulama .ekran:focus {
+  outline: none;
+}
+
+.ekran-hata {
+  margin: 1rem 0;
+  color: var(--hata);
+  font-weight: 500;
+}
+
+.sekmeler {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding:
+    0
+    max(0.25rem, env(safe-area-inset-right))
+    env(safe-area-inset-bottom)
+    max(0.25rem, env(safe-area-inset-left));
+  border-top: 1px solid var(--cizgi);
+  background: var(--yuzey);
+}
+
+.sekme {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 0;
+  min-height: var(--sekme-yuksekligi);
+  padding: 0.5rem 0.25rem;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--soluk);
+  font: 500 0.75rem/1.1 var(--yazitipi-govde);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sekme:active {
+  background: var(--vurgu-zemin);
+}
+
+#uygulama .sekme:focus-visible {
+  outline-offset: -3px;
+}
+
+.sekme-simge {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.sekme[aria-current='page'] {
+  color: var(--boru);
+  font-weight: 600;
+}
+
+/* Seçili sekme: üst kenarda kısa bir boru ve ortasında altın düğüm. */
+.sekme[aria-current='page']::before,
+.sekme[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+}
+
+.sekme[aria-current='page']::before {
+  top: -1px;
+  width: 2.75rem;
+  height: 3px;
+  margin-left: -1.375rem;
+  border-radius: 0 0 3px 3px;
+  background: var(--boru);
+}
+
+.sekme[aria-current='page']::after {
+  top: -4px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: 50%;
+  background: var(--dugum);
+  box-shadow: 0 0 0 2px var(--yuzey);
+}
+
+@media (min-width: 48rem) {
+  .sekmeler {
+    grid-template-columns: repeat(4, minmax(0, 8.5rem));
+    justify-content: center;
+  }
+}
+
+/* Çizelge ekranının ay çubuğu (Görev 9 düğmeleri ekler). */
+.ay-cubugu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3rem;
+  margin-bottom: 1rem;
+}
+
+.ay-adi {
+  margin: 0;
+  font: 700 1.625rem/1.15 var(--yazitipi-baslik);
+  letter-spacing: -0.015em;
+}
+
+.ayarlar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 28rem;
+}
+
+/* --- Bildirim (altta, 2,8 sn) ---------------------------------------------- */
+
+.bildirim {
+  position: fixed;
+  right: var(--kenar-payi);
+  bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  left: var(--kenar-payi);
+  z-index: 20;
+  width: fit-content;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 0.75rem 1.125rem;
+  border-radius: var(--kose);
+  background: var(--murekkep);
+  color: var(--zemin);
+  box-shadow: 0 6px 24px var(--golge);
+  font: 500 0.9375rem/1.4 var(--yazitipi-govde);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(0.5rem);
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s linear 0.2s;
+}
+
+.bildirim.gorunur {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s;
+}
+
+body:has(.sekmeler) .bildirim {
+  bottom: calc(var(--sekme-yuksekligi) + env(safe-area-inset-bottom) + 0.75rem);
+}
+
+/* --- Hareket azaltma ------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  #uygulama *,
+  .bildirim,
+  .bildirim.gorunur {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
    Çıktı: FAZLA MESAİ ÇİZELGESİ (kâğıt formun aynısı, yatay A4, sayfada 20 satır)
 
    Bu dosyada ölçü yoktur. Bütün uzunluklar ve yazı boyları uygulama/cikti.js
