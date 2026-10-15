@@ -78,7 +78,7 @@ Sonra arada bir o klasörde `git pull` yaz. Dosyalar şifrelidir; açmak için o
 
 ## Aynı adresteki diğer uygulamalar
 
-`nigdesukanalizasyon.github.io` adresindeki her uygulama (mağaza, eski `mesai-takip`) bu uygulamanın tarayıcıda sakladığı girişe ulaşabilir; o adreste çalışan kötü bir kod kayıtları da açabilir. Bu yüzden bu adreste başka sitelerden kod (script) yükleyen bir uygulama yayınlama. Eski `mesai-takip` sitesini de ileride kapat.
+`nigdesukanalizasyon.github.io` adresindeki her uygulama (örneğin mağaza) bu uygulamanın tarayıcıda sakladığı girişe ulaşabilir; o adreste çalışan kötü bir kod kayıtları da açabilir. Bu yüzden bu adreste başka sitelerden kod (script) yükleyen bir uygulama yayınlama. Eski `mesai-takip` sitesi 15 Ekim 2026'da kapatıldı; yerinde kod içermeyen bir "taşındı" sayfası duruyor.
 
 ## Araçlar
 
