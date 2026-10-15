@@ -29,7 +29,7 @@ def satir(kimlik, tarih, calisan='c_ali', neden='Pompa arızası', baslama='17:0
 
 # 14.10.2026 çarşamba, 03.10.2026 cumartesi, 11.10.2026 pazar
 EKIM = [
-    satir('s_1', '2026-10-14'),  # 17:00-19:40 çarşamba: 18:00'den sonrası = 1 saat 40 dakika
+    satir('s_1', '2026-10-14'),  # 17:00-19:40 çarşamba: 17:30'dan sonrası = 2 saat 10 dakika
     satir('s_2', '2026-10-11', neden='Vardiya desteği', baslama=None, bitis=None),  # pazar
     satir('s_3', '2026-10-03', calisan='c_cagri', neden='Vana değişimi', baslama='08:00', bitis='11:30'),
 ]
@@ -97,7 +97,7 @@ def test_toplamlar(hazirla, sayfa):
     sekmeye_git(sayfa, 'toplamlar')
     satirlar = sayfa.locator('.toplam-satir')
     expect(satirlar).to_have_count(2)  # kaydı olmayan Şule Öztürk listede yok
-    expect(satirlar.nth(0)).to_have_text('Ali Veli — 1 saat 40 dakika + 1 pazar')
+    expect(satirlar.nth(0)).to_have_text('Ali Veli — 2 saat 10 dakika + 1 pazar')
     expect(satirlar.nth(1)).to_have_text('Çağrı Işık — 3 saat 30 dakika')  # cumartesi: tamamı, pazar yok
     expect(sayfa.get_by_text('Şule Öztürk')).to_have_count(0)
     expect(sayfa.get_by_text(BOS_AY, exact=True)).to_have_count(0)
@@ -461,7 +461,7 @@ def test_ayarlar_alanlari_ve_surum(hazirla, sayfa):
     expect(sayfa.get_by_label('Bölüm Müdürü', exact=True)).to_have_value('Çağrı Işık')
     expect(sayfa.get_by_role('button', name='Kaydet', exact=True)).to_be_visible()
     expect(sayfa.get_by_role('button', name='Çıkış', exact=True)).to_be_visible()
-    surum = ekran.get_by_text('s1.1', exact=True)
+    surum = ekran.get_by_text('s1.2', exact=True)
     expect(surum).to_be_visible()
     # sıra: Kaydet, Çıkış, en altta sürüm
     yer = ekran.evaluate("""(e) => {
@@ -544,7 +544,7 @@ def test_ayarlar_okunamazsa_cikis_yine_var(hazirla, sayfa, kayit_yaz):
     expect(sayfa.get_by_role('alert').filter(has_text='Bu ayın kaydı açılamadı.')).to_be_visible()
     expect(sayfa.get_by_role('button', name='Kaydet', exact=True)).to_have_count(0)
     expect(sayfa.get_by_role('button', name='Çıkış', exact=True)).to_be_enabled()
-    expect(sayfa.get_by_text('s1.1', exact=True)).to_be_visible()
+    expect(sayfa.get_by_text('s1.2', exact=True)).to_be_visible()
 
 
 def test_ayarlar_ciktiya_gecer(hazirla, sayfa):

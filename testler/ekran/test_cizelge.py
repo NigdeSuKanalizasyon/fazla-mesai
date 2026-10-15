@@ -20,7 +20,7 @@ CALISANLAR = {'calisanlar': [
 ]}
 
 BOS_AY = 'Bu ay için kayıt yok.'
-KURAL = "Bu saatlerde fazla mesai yok (hafta içi 18:00'den sonrası sayılır)."
+KURAL = "Bu saatlerde fazla mesai yok (hafta içi 17:30'dan sonrası sayılır)."
 YETKI = "GitHub anahtarının süresi dolmuş. Anıl'a haber verin."
 ERISIM = "GitHub'a şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin."
 PASIF = 'Pasif çalışan seçilemez.'
@@ -106,14 +106,14 @@ def test_mesai_ekle_coklu(hazirla, sayfa, sahte_github, kayit_oku):
     expect(form.get_by_label('Mesai nedeni')).to_have_attribute('maxlength', '60')
     doldur(form, calisanlar=('Ali Veli', 'Çağrı Işık'))
     expect(form.get_by_text('45/60', exact=True)).to_be_visible()  # 'Ana hat arızası' 15 karakter
-    expect(form.get_by_text('Fazla mesai: 1 saat 40 dakika', exact=True)).to_be_visible()
+    expect(form.get_by_text('Fazla mesai: 2 saat 10 dakika', exact=True)).to_be_visible()  # 17:00–19:40, 17:30 sonrası
     form.get_by_role('button', name='Kaydet').click()
 
     expect(form).to_have_count(0)
     expect(bildirim(sayfa)).to_have_text('Kaydedildi')
     expect(satirlar(sayfa)).to_have_count(2)
     for i in range(2):
-        expect(satirlar(sayfa).nth(i)).to_contain_text('1 saat 40 dakika')
+        expect(satirlar(sayfa).nth(i)).to_contain_text('2 saat 10 dakika')
     expect(satirlar(sayfa).nth(0)).to_contain_text('Ali Veli')
     expect(satirlar(sayfa).nth(1)).to_contain_text('Çağrı Işık')
     expect(sayfa.get_by_text(BOS_AY, exact=True)).to_have_count(0)

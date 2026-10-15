@@ -25,14 +25,14 @@ test('ayToplamlari_turkce_siralama', () => {
 
 test('ayToplamlari_pazar_ayri', () => {
   const satirlar = [
-    satir('a', 'c3', '2026-10-14', '17:00', '19:40'), // 100 dk (18:00 sonrası)
+    satir('a', 'c3', '2026-10-14', '17:00', '19:40'), // 130 dk (17:30 sonrası)
     satir('b', 'c3', '2026-10-18', null, null), // pazar
   ];
   const [kisi] = ayToplamlari(satirlar, calisanlar);
   assert.equal(kisi.calisanId, 'c3');
-  assert.equal(kisi.dakika, 100);
+  assert.equal(kisi.dakika, 130);
   assert.equal(kisi.pazar, 1);
-  assert.equal(kisi.yazi, '1 saat 40 dakika + 1 pazar');
+  assert.equal(kisi.yazi, '2 saat 10 dakika + 1 pazar');
 });
 
 test('ayToplamlari_kaydi_olmayan_calisan_yok', () => {

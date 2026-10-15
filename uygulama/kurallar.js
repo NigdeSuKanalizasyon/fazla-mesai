@@ -53,7 +53,7 @@ function saatHatasi(tarih, baslamaHam, bitisHam, simdi) {
   if (bitis <= baslama) return 'Bitiş, başlamadan sonra olmalı.';
   if (tarih === simdi.tarih && bitis > simdi.saat) return 'Bitiş saati henüz gelmedi.';
   if (gun <= 5 && fazlaMesaiDakika(tarih, baslama, bitis) === 0) {
-    return "Bu saatlerde fazla mesai yok (hafta içi 18:00'den sonrası sayılır).";
+    return "Bu saatlerde fazla mesai yok (hafta içi 17:30'dan sonrası sayılır).";
   }
   return null;
 }

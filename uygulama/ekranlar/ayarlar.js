@@ -12,7 +12,7 @@
 import { oturumSil } from '../oturum.js';
 import { eleman, hataKutusu } from './ortak.js';
 
-export const SURUM = 's1.1';
+export const SURUM = 's1.2';
 
 let sayac = 0; // her ekranın kimlikleri ayrı olsun
 

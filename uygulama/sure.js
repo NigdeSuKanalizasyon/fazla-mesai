@@ -1,14 +1,14 @@
 // Fazla mesai süresi (dakika) ve yazıya dökme. Yuvarlama yoktur.
 import { haftaGunu } from './tarih.js';
 
-const HAFTA_ICI_BASLANGIC = 18 * 60; // hafta içi fazla mesai 18:00'dan sonra sayılır
+const HAFTA_ICI_BASLANGIC = 17 * 60 + 30; // hafta içi fazla mesai 17:30'dan sonra sayılır (15.10.2026'ya kadar 18:00'di)
 
 function dakikayaCevir(saat) {
   const [s, d] = saat.split(':').map(Number);
   return s * 60 + d;
 }
 
-// Hafta içi: yalnızca 18:00 sonrası. Cumartesi: tamamı. Pazar: saatsiz, 0.
+// Hafta içi: yalnızca 17:30 sonrası. Cumartesi: tamamı. Pazar: saatsiz, 0.
 export function fazlaMesaiDakika(tarih, baslama, bitis) {
   const gun = haftaGunu(tarih);
   if (gun === 7 || baslama == null || bitis == null) return 0;

@@ -26,7 +26,7 @@ Sunucu yok. Sayfa GitHub Pages'ten, kayıtlar GitHub'dan gelir. Sadece yetkili k
 
 ## Mesai kuralları
 
-- **Hafta içi:** sadece 18:00'den sonrası sayılır. 17:00–19:40 → 1 saat 40 dakika. 18:00'den önce biten satır kaydedilmez.
+- **Hafta içi:** sadece 17:30'dan sonrası sayılır. 17:00–19:40 → 2 saat 10 dakika. 17:30'da ya da daha önce biten satır kaydedilmez. (15 Ekim 2026'ya kadar sınır 18:00'di; kural bütün kayıtlara uygulanır.)
 - **Cumartesi:** başlama ile bitiş arasının tamamı sayılır.
 - **Pazar:** saat girilmez, satırda "PAZAR" yazar. Aylık toplamda saat değil gün sayılır.
 - Gece yarısını aşan mesai yok. İleri tarih ve gelmemiş saat girilemez.

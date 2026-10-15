@@ -108,7 +108,13 @@ test('bitis_once', () => {
 test('hafta_ici_sifir', () => {
   const sonuc = denetle({ tarih: '2026-10-13', baslama: '16:00', bitis: '17:30' });
   assert.equal(sonuc.gecerli, false);
-  assert.equal(sonuc.hatalar.saat, "Bu saatlerde fazla mesai yok (hafta içi 18:00'den sonrası sayılır).");
+  assert.equal(sonuc.hatalar.saat, "Bu saatlerde fazla mesai yok (hafta içi 17:30'dan sonrası sayılır).");
+});
+
+test('hafta_ici_1730_sonrasi_gecerli', () => {
+  // 17:30'u bir dakika bile geçen satır kaydedilebilir; tam 17:30'da biten kaydedilmez.
+  assert.deepEqual(denetle({ tarih: '2026-10-13', baslama: '16:00', bitis: '17:31' }).hatalar, {});
+  assert.equal(denetle({ tarih: '2026-10-13', baslama: '17:00', bitis: '17:30' }).gecerli, false);
 });
 
 test('cumartesi_tamami_gecerli', () => {

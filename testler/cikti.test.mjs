@@ -63,7 +63,7 @@ test('ciktiSatirlari_hafta_ici', () => {
     neden: 'Şebeke arızası',
     baslama: '17:00',
     bitis: '19:40',
-    fm: '1 saat 40 dakika',
+    fm: '2 saat 10 dakika', // 17:30–19:40
   });
 });
 
@@ -155,7 +155,7 @@ test('ciktiHtml_her_sayfada_yirmi_satir', () => {
 test('ciktiHtml_bolum_ve_sure_satira_yazilir', () => {
   const html = ciktiHtml({ satirlar: satirlar(1), calisanlar, ayarlar, tanzim: '2026-10-14' });
   assert.ok(html.includes('Su ve Kanalizasyon'));
-  assert.ok(html.includes('1 saat 40 dakika'));
+  assert.ok(html.includes('2 saat 10 dakika')); // 17:00–19:40, 17:30 sonrası
   assert.ok(html.includes('14.10.2026'));
 });
 

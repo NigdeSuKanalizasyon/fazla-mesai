@@ -321,10 +321,10 @@ test('pdf_satir_sonu_bosluk_sayilir', () => {
 });
 
 test('pdf_sure_dar_sutunda_iki_satir', () => {
-  // "1 saat 40 dakika" dar sütunda iki satıra sarar ("1 saat 40" / "dakika"), satırdan taşmaz.
+  // "2 saat 10 dakika" (17:30–19:40) dar sütunda iki satıra sarar ("2 saat 10" / "dakika"), satırdan taşmaz.
   const { yol } = uret({ satirlar: [satir(1, { baslama: '17:00', bitis: '19:40' })] });
   const t = bosluksuz(metin(yol));
-  assert.ok(t.includes('1 saat 40'));
+  assert.ok(t.includes('2 saat 10'));
   assert.ok(t.includes('dakika'));
 });
 

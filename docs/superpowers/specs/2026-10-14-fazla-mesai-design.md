@@ -230,7 +230,7 @@ Bunlar eski uygulamadaki kuralların aynısıdır, Anıl 14 Ekim 2026'da
 
 | # | Kural |
 |---|---|
-| 1 | **Hafta içi:** sadece 18:00'den sonrası fazla mesai. 17:00–19:40 → 1 saat 40 dakika. |
+| 1 | **Hafta içi:** sadece 17:30'dan sonrası fazla mesai. 17:00–19:40 → 2 saat 10 dakika. (s1.2, 15 Ekim 2026: 18:00'den 17:30'a alındı, bütün kayıtlara uygulanır.) |
 | 2 | **Cumartesi:** başlama ile bitiş arasının tamamı. |
 | 3 | **Pazar:** saat girilmez; satırda "PAZAR" yazar; aylık toplamda saat değil **gün** olarak sayılır. |
 | 4 | Gece yarısını aşan mesai yok: bitiş, başlamadan sonra olmalı. |
@@ -241,9 +241,9 @@ Ek kurallar:
 
 - **Mesai nedeni** zorunlu, en fazla 60 karakter (kâğıttaki sütuna sığsın).
 - **Çalışan** zorunlu; pasif çalışan seçilemez.
-- **Yeni kural (Anıl 14 Ekim 2026'da onayladı):** Hafta içi 18:00'den önce biten
+- **Yeni kural (Anıl 14 Ekim 2026'da onayladı; 15 Ekim'de sınır 17:30 oldu):** Hafta içi 17:30'da ya da önce biten
   satırın fazla mesaisi 0 olur. Böyle bir satır kaydedilmez:
-  "Bu saatlerde fazla mesai yok (hafta içi 18:00'den sonrası sayılır)."
+  "Bu saatlerde fazla mesai yok (hafta içi 17:30'dan sonrası sayılır)."
 - Kurala uymayan satır kaydedilmez; nedeni ilgili kutunun altında yazar.
 
 ### Süre yazımı
@@ -391,7 +391,7 @@ saklanmaz, her açılışta GitHub'dan gelir.
 
 Otomatik (Claude, her değişiklikte):
 
-- **Süre hesabı:** hafta içi 18:00 öncesi / sonrası / kesişen, cumartesi,
+- **Süre hesabı:** hafta içi 17:30 öncesi / sonrası / kesişen, cumartesi,
   pazar, gece yarısı, bugünün gelecek saati, ileri tarih, 60 karakter sınırı.
 - **Şifreleme:** şifrele → çöz aynı veriyi verir; yanlış parola çözemez;
   her yazışta `iv` farklı.
