@@ -6,6 +6,8 @@
 // yenilenir; geç gelen eski bir yanıt yeni ayın listesinin üstüne yazılmaz.
 // Yazdır ve PDF ay, çalışanlar ve ayarları her seferinde GitHub'dan taze okur (başka cihazın yazdığı ya da
 // az önce kaydedilip listesi henüz tazelenmemiş satır da çıktıya girer); liste de aynı okumayla tazelenir.
+// Yazdır'ın çıktısı yazdırma bitince silinir: tarayıcının kendi yazdırması (Ctrl+P, menüden Yazdır) sonradan
+// eski bir çıktıyı basmaz (stil.css o zaman kısa bir not basar).
 
 import { fazlaMesaiDakika, sureYaz } from '../sure.js';
 import { haftaGunu, istanbulSimdi, tarihYaz } from '../tarih.js';
@@ -106,6 +108,33 @@ function yazdirmaAlani() {
     document.body.append(alan);
   }
   return alan;
+}
+
+// Yazdırma bitince (afterprint) çıktı silinir. iOS Safari afterprint'i yazdırma penceresi kapanmadan gönderir;
+// pencere çıktıyı hâlâ çiziyor olabilir. Bu yüzden alan afterprint'ten sonra, kullanıcı sayfaya yeniden
+// dokununca ya da bir tuşa basınca boşaltılır (yazdırma penceresi açıkken sayfaya dokunulamaz).
+let yazdirmaBitti = null; // afterprint geldi, dokunuş bekleniyor: AbortController
+
+function ciktiyiSil() {
+  yazdirmaBitti?.abort();
+  yazdirmaBitti = null;
+  document.getElementById('yazdirma')?.replaceChildren();
+}
+
+function yazdirmaBitince() {
+  if (yazdirmaBitti || !document.getElementById('yazdirma')?.hasChildNodes()) return;
+  yazdirmaBitti = new AbortController();
+  const secenek = { capture: true, signal: yazdirmaBitti.signal };
+  window.addEventListener('pointerdown', ciktiyiSil, secenek);
+  window.addEventListener('keydown', ciktiyiSil, secenek);
+}
+
+window.addEventListener('afterprint', yazdirmaBitince);
+
+function yazdir(girdi) {
+  yazdirmaBitti?.abort(); // yeni çıktı: önceki yazdırmanın beklediği dokunuş artık onu silmez
+  yazdirmaBitti = null;
+  yazdirmaAlani().innerHTML = ciktiHtml(girdi);
 }
 
 export function ekranCiz(kok, baglam) {
@@ -232,7 +261,7 @@ export function ekranCiz(kok, baglam) {
       bildir(hataMetni(hata));
       return;
     }
-    yazdirmaAlani().innerHTML = ciktiHtml(girdi);
+    yazdir(girdi);
     await document.fonts?.ready; // yazı tipi yüklenmeden basılmasın
     window.print();
   }));

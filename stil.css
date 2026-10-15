@@ -1477,6 +1477,21 @@ body:has(.sekmeler) .bildirim {
   #yazdirma {
     display: block;
   }
+
+  /* Tarayıcının kendi yazdırması (Ctrl+P, menüden Yazdır) Yazdır düğmesi olmadan açılırsa boş sayfa
+     yerine bu not basılır. Yazdır'ın çıktısı yazdırma bitince silinir (cizelge.js). */
+  body::before {
+    content: "Çizelgeyi yazdırmak için uygulamadaki Yazdır düğmesine basın.";
+    display: block;
+    padding: 20mm;
+    color: #000;
+    font: 500 14pt/1.4 Figtree, Calibri, Carlito, "Segoe UI", Arial, sans-serif;
+  }
+
+  body:has(> #yazdirma:not(:empty))::before {
+    content: none;
+    display: none;
+  }
 }
 
 /* ==========================================================================

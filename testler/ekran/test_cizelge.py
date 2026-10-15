@@ -648,3 +648,49 @@ def test_silerken_iki_kez_esc_hata_formda_yazar(hazirla, sayfa, sahte_github):
     expect(form.get_by_label('Mesai nedeni')).to_have_value('Silinecek')
     assert sayfa.locator('dialog.onay').count() == 0  # onay penceresi sayfada kalmadı
     expect(sayfa.locator('[data-satir="s_sil"]')).to_have_count(1)
+
+
+YAZDIRMA_NOTU = '"Çizelgeyi yazdırmak için uygulamadaki Yazdır düğmesine basın."'
+
+
+def test_yazdirma_bitince_cikti_alani_bosalir(hazirla, sayfa):
+    """F5: Yazdır'ın çıktısı yazdırma bitince silinir; tarayıcının kendi yazdırması (Ctrl+P, menüden Yazdır)
+    sonradan eski çıktıyı basmaz, boş sayfa yerine kısa bir not basar. iOS Safari afterprint'i yazdırma penceresi
+    kapanmadan gönderdiği için alan afterprint'ten sonra, kullanıcı sayfaya yeniden dokununca boşaltılır."""
+    sayfa.add_init_script(YAZDIR_TAKLIDI)
+    hazirla({'2026-10': [satir('s_1', '2026-10-14')]})
+    alan = sayfa.locator('#yazdirma')
+    yazdir = sayfa.get_by_role('button', name='Yazdır')
+    yazdir.click()
+    sayfa.wait_for_function('window.__yazdir === 1')
+    expect(alan).to_contain_text('FAZLA MESAİ ÇİZELGESİ')
+
+    sayfa.evaluate("window.dispatchEvent(new Event('afterprint'))")
+    sayfa.wait_for_timeout(300)
+    expect(alan).to_contain_text('FAZLA MESAİ ÇİZELGESİ')  # yazdırma penceresi çıktıyı hâlâ çiziyor olabilir
+    sayfa.get_by_role('heading', name='Ekim 2026', exact=True).click()  # kullanıcı sayfaya döndü
+    expect(alan.locator('section')).to_have_count(0)
+    assert alan.evaluate('(a) => a.innerHTML') == ''
+
+    sayfa.emulate_media(media='print')  # Ctrl+P: eski çıktı da boş sayfa da değil, not basılır
+    assert sayfa.evaluate("getComputedStyle(document.body, '::before').content") == YAZDIRMA_NOTU
+    expect(sayfa.locator('#uygulama')).to_be_hidden()
+    sayfa.emulate_media(media='screen')
+
+    yazdir.click()  # yeniden Yazdır: dokunuş eskisini siler, yeni çıktı hazırlanır
+    sayfa.wait_for_function('window.__yazdir === 2')
+    expect(alan.locator('section.cikti-sayfa')).to_have_count(1)
+    sayfa.emulate_media(media='print')
+    assert sayfa.evaluate("getComputedStyle(document.body, '::before').content") == 'none'
+    sayfa.emulate_media(media='screen')
+    sayfa.evaluate("window.dispatchEvent(new Event('afterprint'))")
+    sayfa.keyboard.press('Shift')  # klavyeyle dönüş de sayılır
+    expect(alan.locator('section')).to_have_count(0)
+
+
+def test_cikti_alani_yokken_ctrl_p_not_basar(hazirla, sayfa):
+    hazirla()
+    sayfa.emulate_media(media='print')
+    assert sayfa.evaluate("getComputedStyle(document.body, '::before').content") == YAZDIRMA_NOTU
+    pdf = sayfa.pdf(prefer_css_page_size=True)
+    assert len(re.findall(rb'/Type\s*/Page(?![a-z])', pdf)) == 1
