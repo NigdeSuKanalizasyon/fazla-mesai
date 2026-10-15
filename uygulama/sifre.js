@@ -43,9 +43,14 @@ function rastgele(uzunluk) {
   return globalThis.crypto.getRandomValues(new Uint8Array(uzunluk));
 }
 
+// Parola Unicode NFC biçimine çevrilir (karar R7): aynı harf klavyeye göre tek kod noktası ('ş') ya da harf +
+// işaret ('s' + U+0327) olarak gelebilir; ikisi de aynı anahtarı vermeli. Uygulama, kurulum ve parola aracı
+// anahtarı yalnız buradan ürettiği için hepsi aynı biçimi kullanır.
 export async function anahtarUret(parola, tuz, tekrar) {
+  if (typeof parola !== 'string') throw new TypeError('Parola metin olmalı.');
   const subtle = globalThis.crypto.subtle;
-  const ham = await subtle.importKey('raw', new TextEncoder().encode(parola), 'PBKDF2', false, ['deriveKey']);
+  const baytlar = new TextEncoder().encode(parola.normalize('NFC'));
+  const ham = await subtle.importKey('raw', baytlar, 'PBKDF2', false, ['deriveKey']);
   return subtle.deriveKey(
     { name: 'PBKDF2', hash: 'SHA-256', salt: tuz, iterations: tekrar },
     ham,

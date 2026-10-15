@@ -392,13 +392,15 @@
       yazmaBasladi = false;
       baslangic = null;
 
+      // Karşılaştırma ve uzunluk, anahtarı üreten sifre.js gibi NFC biçimiyle yapılır ('ş' = 's' + işaret).
       const eski = alanlar.eski.value;
       const yeni = alanlar.yeni.value;
       const tekrar = alanlar.tekrar.value;
-      const kisa = [...yeni].length < EN_AZ_KARAKTER;
+      const nfc = (metin) => metin.normalize('NFC');
+      const kisa = [...nfc(yeni)].length < EN_AZ_KARAKTER;
       hataYaz('eski', eski === '' ? 'Eski parolayı yazın.' : '');
-      hataYaz('yeni', kisa ? 'Yeni parola en az 12 karakter olmalı.' : (yeni === eski ? 'Yeni parola eskisiyle aynı olamaz.' : ''));
-      hataYaz('tekrar', yeni !== tekrar ? 'Parolalar aynı değil.' : '');
+      hataYaz('yeni', kisa ? 'Yeni parola en az 12 karakter olmalı.' : (nfc(yeni) === nfc(eski) ? 'Yeni parola eskisiyle aynı olamaz.' : ''));
+      hataYaz('tekrar', nfc(yeni) !== nfc(tekrar) ? 'Parolalar aynı değil.' : '');
       if (form.querySelector('[aria-invalid="true"]')) {
         form.querySelector('[aria-invalid="true"]').focus();
         return;

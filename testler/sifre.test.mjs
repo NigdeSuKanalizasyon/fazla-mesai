@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createCipheriv, createDecipheriv, pbkdf2Sync } from 'node:crypto';
 import {
   SifreHatasi,
   TEKRAR,
@@ -259,4 +260,57 @@ test('buyuk_nesne_gidis_donus', async () => {
   const k = await anahtar();
   const nesne = { satirlar: Array.from({ length: 5000 }, (_, i) => ({ i, ad: 'Ali Veli', neden: 'Çalışma ' + i })) };
   assert.deepEqual(await coz(k, await sifrele(k, nesne)), nesne);
+});
+
+// ---- Bilinen cevap: node:crypto ile bağımsız hesap; parolanın Unicode biçimi (karar R7) ----
+// Aynı harf klavyeye göre iki biçimde gelebilir: tek kod noktası (NFC, 'ş') ya da harf + işaret (NFD, 's' + U+0327).
+// anahtarUret parolayı NFC'ye çevirir; kurulum, parola aracı ve uygulama aynı fonksiyonu kullandığı için hepsi
+// aynı anahtarı üretir. Kutu bir kez gerçek parolayla üretilince bu seçim kalıcıdır.
+
+const PAROLA_NFC = 'Şule Öztürk güçlü parola'; // ş, ö, ü, ç, ğ: NFD'de harf + işaret olur
+const PAROLA_NFD = PAROLA_NFC.normalize('NFD');
+const BILINEN_TUZ = Uint8Array.from({ length: 16 }, (_, i) => i + 1);
+const BILINEN_TOKEN = 'github_pat_ornek_çğışöü_0123456789';
+
+// node:crypto: PBKDF2-HMAC-SHA256(parolanın NFC UTF-8 baytları, tuz, tekrar, 32 bayt) -> AES-256-GCM anahtarı.
+function nodeAnahtari(parola, tuz, tekrar) {
+  return pbkdf2Sync(Buffer.from(parola.normalize('NFC'), 'utf8'), tuz, tekrar, 32, 'sha256');
+}
+
+test('bilinen_cevap_kutu_node_crypto_ile_acilir', async () => {
+  assert.notEqual(PAROLA_NFD, PAROLA_NFC); // test anlamlı: iki biçim gerçekten farklı baytlar
+  const kutu = await tokenKutusuOlustur(PAROLA_NFD, BILINEN_TOKEN, { tekrar: TEKRAR_TEST, tuz: BILINEN_TUZ });
+  assert.equal(kutu.tekrar, 1000);
+  assert.deepEqual(b64Coz(kutu.tuz), BILINEN_TUZ);
+  const veri = Buffer.from(kutu.veri, 'base64');
+  const cozucu = createDecipheriv('aes-256-gcm', nodeAnahtari(PAROLA_NFC, BILINEN_TUZ, 1000), b64Coz(kutu.iv));
+  cozucu.setAuthTag(veri.subarray(-16)); // doğrulama etiketi veri'nin son 16 baytı
+  const acik = Buffer.concat([cozucu.update(veri.subarray(0, -16)), cozucu.final()]).toString('utf8');
+  assert.equal(acik, BILINEN_TOKEN);
+});
+
+test('bilinen_cevap_node_crypto_ile_sifrelenen_acilir', async () => {
+  const iv = Uint8Array.from({ length: 12 }, (_, i) => 200 + i);
+  const sifreleyici = createCipheriv('aes-256-gcm', nodeAnahtari(PAROLA_NFC, BILINEN_TUZ, 1000), iv);
+  const govde = Buffer.concat([sifreleyici.update(JSON.stringify({ a: 'Çağrı Işık' }), 'utf8'), sifreleyici.final()]);
+  const zarf = { surum: 1, iv: b64(iv), veri: b64(Buffer.concat([govde, sifreleyici.getAuthTag()])) };
+  for (const parola of [PAROLA_NFC, PAROLA_NFD]) {
+    const k = await anahtarUret(parola, BILINEN_TUZ, 1000);
+    assert.deepEqual(await coz(k, zarf), { a: 'Çağrı Işık' });
+  }
+  const yanlisTekrar = await anahtarUret(PAROLA_NFC, BILINEN_TUZ, 999);
+  await assert.rejects(() => coz(yanlisTekrar, zarf), SifreHatasi);
+});
+
+test('nfd_yazilan_parola_nfc_ile_ayni_anahtari_uretir', async () => {
+  const kutu = await tokenKutusuOlustur(PAROLA_NFC, 'github_pat_x', { tekrar: TEKRAR_TEST });
+  assert.equal(await tokenCoz(await kutudanAnahtar(PAROLA_NFD, kutu), kutu), 'github_pat_x');
+  const tersi = await tokenKutusuOlustur(PAROLA_NFD, 'github_pat_y', { tekrar: TEKRAR_TEST });
+  assert.equal(await tokenCoz(await kutudanAnahtar(PAROLA_NFC, tersi), tersi), 'github_pat_y');
+});
+
+test('parola_metin_degilse_TypeError', async () => {
+  for (const parola of [undefined, null, 12345, ['a']]) {
+    await assert.rejects(() => anahtarUret(parola, BILINEN_TUZ, TEKRAR_TEST), TypeError);
+  }
 });

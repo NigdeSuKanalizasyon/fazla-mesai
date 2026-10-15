@@ -122,9 +122,10 @@
     });
 
     // Parola kısa mı, iki parola aynı mı, token var mı? Hepsi bir arada gösterilir.
+    // Uzunluk ve karşılaştırma, anahtarı üreten sifre.js gibi NFC biçimiyle yapılır ('ş' = 's' + işaret).
     function denetle(token, parola, tekrar) {
-      const kisa = [...parola].length < EN_AZ_KARAKTER;
-      const farkli = parola !== tekrar;
+      const kisa = [...parola.normalize('NFC')].length < EN_AZ_KARAKTER;
+      const farkli = parola.normalize('NFC') !== tekrar.normalize('NFC');
       hataYaz('token', token === '' ? MESAJLAR.tokenYok : '');
       hataYaz('parola', kisa ? MESAJLAR.kisa : '');
       hataYaz('tekrar', farkli ? MESAJLAR.farkli : '');
