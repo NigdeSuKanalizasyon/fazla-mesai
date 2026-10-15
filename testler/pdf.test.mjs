@@ -29,7 +29,6 @@ const calisanlar = [
   { id: 'c3', ad: 'Şule Öztürk', aktif: true },
 ];
 const ayarlar = {
-  bolumYazisi: 'Su ve Kanalizasyon',
   imza: { bolumAmiri: 'Şule Öztürk', puantor: 'Çağrı Işık', bolumMuduru: 'Ali Veli' },
 };
 const satir = (i, ek = {}) => ({
@@ -102,9 +101,15 @@ test('pdf_turkce_harfler', () => {
 
 test('pdf_turkce_harfler_hepsi', () => {
   const { yol } = uret({
-    ayarlar: { ...ayarlar, bolumYazisi: 'ğşıİçöüĞŞÇÖÜ' },
+    ayarlar: { imza: { ...ayarlar.imza, bolumAmiri: 'ğşıİçöüĞŞÇÖÜ' } },
   });
   assert.ok(metin(yol).includes('ğşıİçöüĞŞÇÖÜ'));
+});
+
+test('pdf_bolum_su_ve_kanalizasyon', () => {
+  const t = metin(uret({ satirlar: satirlar(2), ayarlar: { ...ayarlar, bolumYazisi: 'Eski Yazı' } }).yol);
+  assert.equal(say(t, 'Su ve Kanalizasyon'), 2);
+  assert.ok(!t.includes('Eski Yazı'));
 });
 
 test('pdf_imza_her_sayfada', () => {

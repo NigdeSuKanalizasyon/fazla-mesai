@@ -15,7 +15,8 @@ const kodOnlu = (html) => html.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/.*$/
 
 test('oku_md_zorunlu_satirlar', () => {
   const oku_md = oku('OKU.md');
-  assert.ok(oku_md.includes("GitHub anahtarının bitiş tarihi: (Görev 12'de yazılacak)"));
+  assert.ok(oku_md.includes('GitHub anahtarının bitiş tarihi: süresiz (No expiration)'));
+  assert.ok(!oku_md.includes("(Görev 12'de yazılacak)"), 'kurulumdan kalan yer tutucu');
   assert.ok(oku_md.includes('Bu klasöre şifresiz parola, şifresiz token ya da gerçek kişi adı konmaz.'));
   assert.ok(oku_md.includes('https://nigdesukanalizasyon.github.io/fazla-mesai/'));
   for (const kelime of ['Uygulamalar mağazası', '30 gün', 'Çıkış', 'kurulum.html', 'parola-degistir.html',

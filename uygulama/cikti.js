@@ -6,6 +6,10 @@ import { haftaGunu, tarihYaz } from './tarih.js';
 
 export const SATIR_SAYISI = 20;
 
+// BÖLÜMÜ sütununa her satırda yazılan sabit yazı. Ayarlardan değiştirilmez; eski sürümün
+// ayarlar.json'a yazdığı bolumYazisi alanı kullanılmaz.
+export const BOLUM_YAZISI = 'Su ve Kanalizasyon';
+
 // Ortak ölçüler. Uzunluklar mm, yazı boyları pt. Orijinal kâğıt formun fotoğrafından
 // ölçülüp yaklaşık olarak alınmıştır; sütun oranları: TARİH %9, ADI SOYADI %22,
 // BÖLÜMÜ %21, MESAİ NEDENİ %22, BAŞLAMA/BİTİŞ/F. MESAİ %5,5, İMZA %9,5.
@@ -106,15 +110,15 @@ export function olcuDegiskenleri(o = OLCULER) {
 // Çıktı satırları: ekranda/PDF'te yazılacak hazır metinler.
 //   tarih  'GG.AA.YYYY'   fm  sureYaz(...) ya da 'PAZAR' (pazarda baslama/bitis '')
 // Girdi sırası korunur (Kayitlar.ay zaten sıralı verir). Listede olmayan çalışanın adı boş gelir.
-export function ciktiSatirlari(satirlar, calisanlar, ayarlar) {
+// BÖLÜMÜ her satırda BOLUM_YAZISI'dır; ayarlar yalnızca imza isimleri için kullanılır (ciktiHtml, pdf.js).
+export function ciktiSatirlari(satirlar, calisanlar) {
   const adlar = new Map(calisanlar.map((c) => [c.id, c.ad]));
-  const bolum = ayarlar?.bolumYazisi ?? '';
   return satirlar.map((s) => {
     const pazar = haftaGunu(s.tarih) === 7;
     return {
       tarih: tarihYaz(s.tarih),
       ad: adlar.get(s.calisanId) ?? '',
-      bolum,
+      bolum: BOLUM_YAZISI,
       neden: s.neden ?? '',
       baslama: pazar ? '' : (s.baslama ?? ''),
       bitis: pazar ? '' : (s.bitis ?? ''),
@@ -199,7 +203,7 @@ function imzaTablosu(ayarlar) {
 // Her sayfada başlık, tanzim tarihi, sütun başlıkları, SATIR_SAYISI satır (boşlar dahil)
 // ve imza tablosu bulunur. Bütün metinler kaçışlıdır.
 export function ciktiHtml({ satirlar, calisanlar, ayarlar, tanzim }) {
-  const sayfalar = sayfalaraBol(ciktiSatirlari(satirlar, calisanlar, ayarlar));
+  const sayfalar = sayfalaraBol(ciktiSatirlari(satirlar, calisanlar));
   const stil = olcuDegiskenleri();
   const tanzimYazi = tarihYaz(tanzim);
   const ust = bantSatiri(tanzimYazi) + sutunBasligiSatiri();

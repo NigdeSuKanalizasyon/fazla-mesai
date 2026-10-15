@@ -9,7 +9,7 @@ from conftest import CIKTI, GORUNUM, PAROLA, TOKEN
 
 AY_ADLARI = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
              'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
-SEKMELER = [('cizelge', 'Çizelge'), ('toplamlar', 'Toplamlar'),
+SEKMELER = [('cizelge', 'Çizelge'), ('toplamlar', 'Mesailer'),
             ('calisanlar', 'Çalışanlar'), ('ayarlar', 'Ayarlar')]
 
 PAROLA_YANLIS = 'Parola yanlış.'

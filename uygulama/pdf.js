@@ -211,7 +211,7 @@ export function pdfUret({ jsPDF, yaziTipleri, satirlar, calisanlar, ayarlar, tan
   doc.addFileToVFS('Figtree-SemiBold.ttf', yaziTipleri.kalin);
   doc.addFont('Figtree-SemiBold.ttf', YAZI_KALIN, 'normal');
 
-  const sayfalar = sayfalaraBol(ciktiSatirlari(satirlar, calisanlar, ayarlar));
+  const sayfalar = sayfalaraBol(ciktiSatirlari(satirlar, calisanlar));
   const tanzimYazi = tarihYaz(tanzim);
   sayfalar.forEach((sayfa, i) => {
     if (i > 0) doc.addPage();

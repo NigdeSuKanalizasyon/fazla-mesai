@@ -42,8 +42,8 @@ const SEKMELER = [
     simge: `<svg ${SIMGE}><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M8 2.75v3.5M16 2.75v3.5M7.5 13.5h2.5M14 13.5h2.5M7.5 17h2.5"/></svg>`,
   },
   {
-    kimlik: 'toplamlar',
-    ad: 'Toplamlar',
+    kimlik: 'toplamlar', // iç ad; ekranda "Mesailer" yazar
+    ad: 'Mesailer',
     ekran: toplamlar,
     simge: `<svg ${SIMGE}><path d="M17.5 5.5h-11l6 6.5-6 6.5h11"/></svg>`,
   },

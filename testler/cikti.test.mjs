@@ -15,7 +15,6 @@ const calisanlar = [
   { id: 'c2', ad: 'Çağrı Işık', aktif: true },
 ];
 const ayarlar = {
-  bolumYazisi: 'Su ve Kanalizasyon',
   imza: { bolumAmiri: 'Şule Öztürk', puantor: 'Çağrı Işık', bolumMuduru: 'Ali Veli' },
 };
 const satir = (i, ek = {}) => ({
@@ -66,6 +65,14 @@ test('ciktiSatirlari_hafta_ici', () => {
     bitis: '19:40',
     fm: '1 saat 40 dakika',
   });
+});
+
+test('ciktiSatirlari_bolum_her_zaman_su_ve_kanalizasyon', () => {
+  // Bölümü sütunu ayarlanmaz: dosyada eski bir yazı kalmış olsa da, hiç ayar yoksa da aynı yazı çıkar.
+  for (const a of [ayarlar, {}, undefined, null, { ...ayarlar, bolumYazisi: 'Başka Bölüm' }]) {
+    const [s] = ciktiSatirlari([satir(1)], calisanlar, a);
+    assert.equal(s.bolum, 'Su ve Kanalizasyon');
+  }
 });
 
 test('ciktiSatirlari_pazar', () => {
@@ -175,7 +182,7 @@ test('ciktiHtml_kacis_tum_alanlar', () => {
   const html = ciktiHtml({
     satirlar: [satir(1, { neden: kotu })],
     calisanlar: [{ id: 'c1', ad: kotu, aktif: true }],
-    ayarlar: { bolumYazisi: kotu, imza: { bolumAmiri: kotu, puantor: kotu, bolumMuduru: kotu } },
+    ayarlar: { imza: { bolumAmiri: kotu, puantor: kotu, bolumMuduru: kotu } },
     tanzim: '2026-10-14',
   });
   assert.ok(!html.includes('<i>'));
@@ -192,6 +199,7 @@ test('ciktiHtml_olculer_css_degiskeni_olarak', () => {
 
 test('ciktiHtml_eksik_ayar_cokmez', () => {
   const html = ciktiHtml({ satirlar: satirlar(1), calisanlar, ayarlar: {}, tanzim: '2026-10-14' });
+  assert.ok(html.includes('Su ve Kanalizasyon'));
   assert.equal(say(html, 'PUANTÖR'), 1);
   assert.ok(!html.includes('undefined'));
 });

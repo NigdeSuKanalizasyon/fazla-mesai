@@ -218,7 +218,7 @@ test('calisan_pasife', async () => {
 test('ayarlar_varsayilan', async () => {
   const { sahte, kayitlar } = kur();
   assert.deepEqual(await kayitlar.ayarlar(), VARSAYILAN_AYARLAR);
-  assert.deepEqual(VARSAYILAN_AYARLAR, { bolumYazisi: '', imza: { bolumAmiri: '', puantor: '', bolumMuduru: '' } });
+  assert.deepEqual(VARSAYILAN_AYARLAR, { imza: { bolumAmiri: '', puantor: '', bolumMuduru: '' } });
   assert.equal(sahte.dosyalar.size, 0, 'okumak dosya oluşturmaz');
 });
 
@@ -440,18 +440,17 @@ test('calisanGuncelle_ad_duzeltir_ve_olmayani_reddeder', async () => {
 
 test('ayarlariKaydet_ve_ayarlar_geri_okunur', async () => {
   const { sahte, kayitlar } = kur();
-  const ayarlar = { bolumYazisi: 'Su İşleri', imza: { bolumAmiri: 'Ali Veli', puantor: 'Çağrı Işık', bolumMuduru: 'Şule Öztürk' } };
+  const ayarlar = { imza: { bolumAmiri: 'Ali Veli', puantor: 'Çağrı Işık', bolumMuduru: 'Şule Öztürk' } };
   await kayitlar.ayarlariKaydet(ayarlar);
   assert.deepEqual(await kayitlar.ayarlar(), ayarlar);
-  assert.ok(!sahte.dosyalar.get('ayarlar.json').icerik.includes('Su İşleri'));
+  assert.ok(!sahte.dosyalar.get('ayarlar.json').icerik.includes('Çağrı Işık'));
 });
 
 test('ayarlar_donen_nesne_degistirilse_de_varsayilan_bozulmaz', async () => {
   const { kayitlar } = kur();
   const a = await kayitlar.ayarlar();
   a.imza.puantor = 'Değişti';
-  a.bolumYazisi = 'Değişti';
-  assert.deepEqual(await kayitlar.ayarlar(), { bolumYazisi: '', imza: { bolumAmiri: '', puantor: '', bolumMuduru: '' } });
+  assert.deepEqual(await kayitlar.ayarlar(), { imza: { bolumAmiri: '', puantor: '', bolumMuduru: '' } });
   assert.equal(VARSAYILAN_AYARLAR.imza.puantor, '');
 });
 
@@ -462,7 +461,7 @@ test('commit_mesajlari_kisi_adi_icermez', async () => {
   const [s] = await kayitlar.satirlarEkle([satir({ calisanId: c.id }), satir({ tarih: '2026-11-02', calisanId: c.id })]);
   await kayitlar.satirGuncelle(s, { ...s, neden: 'Düzeltme' });
   await kayitlar.satirSil(s);
-  await kayitlar.ayarlariKaydet({ ...VARSAYILAN_AYARLAR, bolumYazisi: 'Su İşleri' });
+  await kayitlar.ayarlariKaydet({ imza: { ...VARSAYILAN_AYARLAR.imza, puantor: 'Şule Öztürk' } });
 
   const beklenen = new Map([
     ['calisanlar.json', 'Çalışanlar'],

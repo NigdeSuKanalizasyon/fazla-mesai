@@ -1,4 +1,4 @@
-// Toplamlar (spec 7.3): seçili ayda her çalışanın toplamı, ada göre sıralı
+// Mesailer sekmesi (spec 7.3 "Toplamlar"): seçili ayda her çalışanın toplamı, ada göre sıralı
 // ("Ad Soyad — 12 saat 40 dakika + 2 pazar"). O ay kaydı olmayan çalışan listede görünmez.
 //
 // Ay çubuğu Çizelge ile ortaktır (baglam.durum.ay), bu yüzden iki sekmede de aynı ay açılır.

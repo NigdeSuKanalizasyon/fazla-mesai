@@ -187,8 +187,8 @@ Dosya adlarında kişi bilgisi yoktur; adlar dosyaların şifreli içeriğindedi
 { "calisanlar": [ { "id": "c_k3x9", "ad": "Ad Soyad", "aktif": true } ] }
 
 // ayarlar.json
-{ "bolumYazisi": "",
-  "imza": { "bolumAmiri": "", "puantor": "", "bolumMuduru": "" } }
+{ "imza": { "bolumAmiri": "", "puantor": "", "bolumMuduru": "" } }
+// (s1.0'ın yazdığı "bolumYazisi" alanı dosyada kalabilir; kullanılmaz)
 
 // mesai/2026-10.json
 { "satirlar": [
@@ -257,7 +257,7 @@ Ek kurallar:
 
 ## 7. Ekranlar
 
-Altta dört sekme: **Çizelge, Toplamlar, Çalışanlar, Ayarlar.**
+Altta dört sekme: **Çizelge, Mesailer, Çalışanlar, Ayarlar.**
 Mağazadaki diğer uygulamalarla aynı görünüm dili: aynı yeşil ve altın
 renkler, aynı yazı tipleri.
 
@@ -285,7 +285,7 @@ renkler, aynı yazı tipleri.
 - **Kaydet** → kayıt bitince pencere kapanır, satır listede görünür,
   "Kaydedildi" bildirimi.
 
-### 7.3 Toplamlar
+### 7.3 Mesailer (aylık toplamlar)
 
 - Seçili ay için her çalışanın toplamı, ada göre sıralı:
   "Ad Soyad — 12 saat 40 dakika + 2 pazar".
@@ -299,7 +299,6 @@ renkler, aynı yazı tipleri.
 
 ### 7.5 Ayarlar
 
-- **Bölümü sütunu yazısı** (her satıra aynısı yazılır).
 - **İmza isimleri:** Bölüm Amiri, Puantör, Bölüm Müdürü.
 - **Çıkış**.
 - Uygulama sürümü (küçük, en altta).
@@ -315,7 +314,7 @@ renkler, aynı yazı tipleri.
   alındığı gün (GG.AA.YYYY).
 - Sütunlar: **TARİH | ADI SOYADI | BÖLÜMÜ | MESAİ NEDENİ | BAŞLAMA SAATİ |
   BİTİŞ SAATİ | F. MESAİ SAATİ | İMZA**
-- BÖLÜMÜ: ayarlardaki yazı, her satırda aynı.
+- BÖLÜMÜ: her satırda sabit "Su ve Kanalizasyon" (ayarlanmaz; s1.1).
 - F. MESAİ SAATİ: "1 saat 40 dakika" (gerekirse iki satıra bölünür);
   pazar satırında "PAZAR", başlama ve bitiş boş.
 - İMZA: boş.

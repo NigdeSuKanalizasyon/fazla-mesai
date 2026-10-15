@@ -22,7 +22,6 @@ const KIMLIK_UZUNLUGU = 8;
 const SATIR_KIMLIGI = /^s_[0-9a-z]{8}$/;
 
 export const VARSAYILAN_AYARLAR = Object.freeze({
-  bolumYazisi: '',
   imza: Object.freeze({ bolumAmiri: '', puantor: '', bolumMuduru: '' }),
 });
 

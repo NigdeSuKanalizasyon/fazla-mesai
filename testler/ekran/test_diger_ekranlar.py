@@ -87,7 +87,7 @@ def calisan_ekle_ac(sayfa):
 
 
 def ayarlar_yuklendi(sayfa):
-    expect(sayfa.get_by_label('Bölümü sütunu', exact=True)).to_be_enabled()
+    expect(sayfa.get_by_label('Bölüm Amiri', exact=True)).to_be_enabled()
 
 
 # --- Toplamlar -----------------------------------------------------------------
@@ -452,13 +452,16 @@ def test_ayarlar_alanlari_ve_surum(hazirla, sayfa):
                      'imza': {'bolumAmiri': 'Ali Veli', 'puantor': '', 'bolumMuduru': 'Çağrı Işık'}})
     ekran = sekmeye_git(sayfa, 'ayarlar')
     ayarlar_yuklendi(sayfa)
-    expect(sayfa.get_by_label('Bölümü sütunu', exact=True)).to_have_value('Su İşleri')
+    # Bölümü sütunu ayarlanmaz: çıktıya her zaman "Su ve Kanalizasyon" yazılır
+    expect(sayfa.get_by_label('Bölümü sütunu')).to_have_count(0)
+    expect(ekran.get_by_text('Çıktıda her satıra aynısı yazılır.')).to_have_count(0)
+    expect(sayfa.locator('.ayar-formu input')).to_have_count(3)
     expect(sayfa.get_by_label('Bölüm Amiri', exact=True)).to_have_value('Ali Veli')
     expect(sayfa.get_by_label('Puantör', exact=True)).to_have_value('')
     expect(sayfa.get_by_label('Bölüm Müdürü', exact=True)).to_have_value('Çağrı Işık')
     expect(sayfa.get_by_role('button', name='Kaydet', exact=True)).to_be_visible()
     expect(sayfa.get_by_role('button', name='Çıkış', exact=True)).to_be_visible()
-    surum = ekran.get_by_text('s1.0', exact=True)
+    surum = ekran.get_by_text('s1.1', exact=True)
     expect(surum).to_be_visible()
     # sıra: Kaydet, Çıkış, en altta sürüm
     yer = ekran.evaluate("""(e) => {
@@ -472,7 +475,7 @@ def test_ayarlar_varsayilan_bos(hazirla, sayfa):
     hazirla()  # ayarlar.json hiç yazılmamış
     sekmeye_git(sayfa, 'ayarlar')
     ayarlar_yuklendi(sayfa)
-    for ad in ('Bölümü sütunu', 'Bölüm Amiri', 'Puantör', 'Bölüm Müdürü'):
+    for ad in ('Bölüm Amiri', 'Puantör', 'Bölüm Müdürü'):
         expect(sayfa.get_by_label(ad, exact=True)).to_have_value('')
 
 
@@ -481,19 +484,18 @@ def test_ayarlar_kaydet(hazirla, sayfa, sahte_github, kayit_oku):
                      'baskaAlan': 7})
     sekmeye_git(sayfa, 'ayarlar')
     ayarlar_yuklendi(sayfa)
-    sayfa.get_by_label('Bölümü sütunu', exact=True).fill('  Su ve Kanalizasyon ')
-    sayfa.get_by_label('Puantör', exact=True).fill('Şule Öztürk')
+    sayfa.get_by_label('Puantör', exact=True).fill('  Şule Öztürk ')
     sayfa.get_by_label('Bölüm Müdürü', exact=True).fill('Çağrı Işık')
     sayfa.get_by_role('button', name='Kaydet', exact=True).click()
 
     expect(bildirim(sayfa)).to_have_text('Ayarlar kaydedildi')
     assert kayit_oku('ayarlar.json') == {
-        'bolumYazisi': 'Su ve Kanalizasyon',  # kırpıldı
-        'imza': {'bolumAmiri': 'Ali Veli', 'puantor': 'Şule Öztürk', 'bolumMuduru': 'Çağrı Işık'},
+        'bolumYazisi': 'Eski',  # eski sürümden kalan alan dokunulmadan kalır (çıktıda kullanılmaz)
+        'imza': {'bolumAmiri': 'Ali Veli', 'puantor': 'Şule Öztürk', 'bolumMuduru': 'Çağrı Işık'},  # kırpıldı
         'baskaAlan': 7,  # bilinmeyen alan korunur
     }
     assert len(yazislar(sahte_github)) == 1
-    expect(sayfa.get_by_label('Bölümü sütunu', exact=True)).to_have_value('Su ve Kanalizasyon')
+    expect(sayfa.get_by_label('Puantör', exact=True)).to_have_value('Şule Öztürk')
     expect(sayfa.get_by_role('button', name='Kaydet', exact=True)).to_be_enabled()
     # başka sekmeye gidip dönünce kaydedilen değerler gelir
     sekmeye_git(sayfa, 'toplamlar')
@@ -542,15 +544,15 @@ def test_ayarlar_okunamazsa_cikis_yine_var(hazirla, sayfa, kayit_yaz):
     expect(sayfa.get_by_role('alert').filter(has_text='Bu ayın kaydı açılamadı.')).to_be_visible()
     expect(sayfa.get_by_role('button', name='Kaydet', exact=True)).to_have_count(0)
     expect(sayfa.get_by_role('button', name='Çıkış', exact=True)).to_be_enabled()
-    expect(sayfa.get_by_text('s1.0', exact=True)).to_be_visible()
+    expect(sayfa.get_by_text('s1.1', exact=True)).to_be_visible()
 
 
 def test_ayarlar_ciktiya_gecer(hazirla, sayfa):
     sayfa.add_init_script('window.print = () => { window.__yazdir = (window.__yazdir || 0) + 1; };')
-    hazirla({'2026-10': EKIM[:2]})
+    hazirla({'2026-10': EKIM[:2]}, ayarlar={'bolumYazisi': 'Eski Yazı',
+                                         'imza': {'bolumAmiri': '', 'puantor': '', 'bolumMuduru': ''}})
     sekmeye_git(sayfa, 'ayarlar')
     ayarlar_yuklendi(sayfa)
-    sayfa.get_by_label('Bölümü sütunu', exact=True).fill('Su ve Kanalizasyon')
     sayfa.get_by_label('Puantör', exact=True).fill('Şule Öztürk')
     sayfa.get_by_role('button', name='Kaydet', exact=True).click()
     expect(bildirim(sayfa)).to_have_text('Ayarlar kaydedildi')
@@ -562,7 +564,7 @@ def test_ayarlar_ciktiya_gecer(hazirla, sayfa):
     govdeler = sayfa.locator('#yazdirma .cikti-govde')
     dolu = govdeler.filter(has=sayfa.locator('.cikti-metin'))
     expect(dolu).to_have_count(2)
-    for i in range(2):  # her dolu satırın BÖLÜMÜ (3. sütun) hücresinde
+    for i in range(2):  # her dolu satırın BÖLÜMÜ (3. sütun) hücresinde, dosyadaki eski yazı değil
         expect(dolu.nth(i).locator('.cikti-hucre').nth(2)).to_have_text('Su ve Kanalizasyon')
     imzalar = sayfa.locator('#yazdirma .cikti-imza-isim')
     expect(imzalar.nth(1)).to_have_text('Şule Öztürk')  # PUANTÖR kutusunun altı

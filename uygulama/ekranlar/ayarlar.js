@@ -1,5 +1,5 @@
-// Ayarlar (spec 7.5): Bölümü sütunu yazısı (çıktıda her satıra aynısı yazılır), imza isimleri
-// (Bölüm Amiri, Puantör, Bölüm Müdürü), Çıkış ve en altta uygulama sürümü.
+// Ayarlar (spec 7.5): imza isimleri (Bölüm Amiri, Puantör, Bölüm Müdürü), Çıkış ve en altta uygulama
+// sürümü. Bölümü sütunu ayarlanmaz; çıktıya her satırda BOLUM_YAZISI (cikti.js) yazılır.
 //
 // Form hemen çizilir, kutular ayarlar okunana kadar pasiftir. Ayarlar okunamazsa form kalkar (var olan
 // dosyanın üzerine yazılmasın) ve hata yazar; Çıkış ve sürüm yerinde kalır. Kaydederken dosyadaki
@@ -12,7 +12,7 @@
 import { oturumSil } from '../oturum.js';
 import { eleman, hataKutusu } from './ortak.js';
 
-export const SURUM = 's1.0';
+export const SURUM = 's1.1';
 
 let sayac = 0; // her ekranın kimlikleri ayrı olsun
 
@@ -73,12 +73,6 @@ export function ekranCiz(kok, baglam) {
     return { grup, giris };
   }
 
-  const bolumKutusu = kutuOlustur('bolumYazisi', 'Bölümü sütunu');
-  const not = eleman('p', 'alan-notu', 'Çıktıda her satıra aynısı yazılır.');
-  not.id = `${k}-not`;
-  bolumKutusu.giris.setAttribute('aria-describedby', not.id);
-  bolumKutusu.grup.append(not);
-
   const imza = eleman('fieldset', 'imza-alanlari');
   imza.append(eleman('legend', '', 'İmza isimleri'));
   const imzaKutulari = [['bolumAmiri', 'Bölüm Amiri'], ['puantor', 'Puantör'], ['bolumMuduru', 'Bölüm Müdürü']]
@@ -95,15 +89,14 @@ export function ekranCiz(kok, baglam) {
   const kaydetDugmesi = eleman('button', 'dugme dugme-ana', 'Kaydet');
   kaydetDugmesi.type = 'submit';
   kaydetDugmesi.disabled = true;
-  form.append(bolumKutusu.grup, imza, formHatasi, kaydetDugmesi);
+  form.append(imza, formHatasi, kaydetDugmesi);
   alan.append(form);
 
-  const kutular = [bolumKutusu.giris, ...imzaKutulari];
+  const kutular = imzaKutulari;
   let kayitli = null; // dosyadaki son hali; kaydederken bilinmeyen alanlar buradan korunur
   let mesgul = false;
 
   function doldur(ayarlar) {
-    bolumKutusu.giris.value = metin(ayarlar.bolumYazisi);
     const imzalar = nesne(ayarlar.imza);
     for (const giris of imzaKutulari) giris.value = metin(imzalar[giris.name]);
   }
@@ -120,11 +113,7 @@ export function ekranCiz(kok, baglam) {
   async function kaydet() {
     if (mesgul || kayitli === null) return; // çift basış, Enter: tek kayıt
     formHatasi.textContent = '';
-    const yeni = {
-      ...kayitli,
-      bolumYazisi: bolumKutusu.giris.value.trim(),
-      imza: { ...nesne(kayitli.imza) },
-    };
+    const yeni = { ...kayitli, imza: { ...nesne(kayitli.imza) } };
     for (const giris of imzaKutulari) yeni.imza[giris.name] = giris.value.trim();
     kilitle(true);
     try {
