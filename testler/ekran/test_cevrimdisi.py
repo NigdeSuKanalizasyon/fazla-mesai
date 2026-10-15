@@ -24,13 +24,17 @@ ANAHTARLAR = f"""() => caches.keys().then(async (adlar) => {{
 
 
 class OzelSunucu:
-    """Testin kendi yerel sunucusu: proje klasörünü sunar; dosya engellenebilir, değiştirilebilir ve
-    sunucu kapatılabilir. Servis çalışanının istekleri Playwright'ın route'larından geçmez; ağın
-    gerçekten gitmesi (sunucunun kapanması) ancak böyle denenir. Kapanınca bağlantı reddedilir."""
+    """Testin kendi yerel sunucusu: proje klasörünü sunar; dosya engellenebilir, değiştirilebilir,
+    geciktirilebilir, hiç yanıtlanmayabilir ve sunucu kapatılabilir. Servis çalışanının istekleri
+    Playwright'ın route'larından geçmez; ağın gerçekten gitmesi (sunucunun kapanması) ya da takılması
+    ancak böyle denenir. Kapanınca bağlantı reddedilir."""
 
     def __init__(self):
         self.engelli = set()  # bu yollar 404 verir
         self.degisen = {}  # yol -> (içerik türü, metin)
+        self.geciken = {}  # yol -> saniye: yanıt bu kadar geç gelir
+        self.takilan = set()  # bu yollar (ya da '*': hepsi) hiç yanıtlanmaz: bağlantı var, yanıt yok
+        self._serbest = threading.Event()  # kapanınca takılan istekler bırakılır
         sunucu = self
 
         class Isleyici(SimpleHTTPRequestHandler):
@@ -39,6 +43,11 @@ class OzelSunucu:
 
             def do_GET(self):
                 yol = urlsplit(self.path).path
+                if '*' in sunucu.takilan or yol in sunucu.takilan:
+                    sunucu._serbest.wait()
+                    return
+                if yol in sunucu.geciken:
+                    time.sleep(sunucu.geciken[yol])
                 if yol in sunucu.engelli:
                     self.send_error(404)
                 elif yol in sunucu.degisen:
@@ -60,6 +69,7 @@ class OzelSunucu:
     def kapat(self):
         if self._acik:
             self._acik = False
+            self._serbest.set()
             self._httpd.shutdown()
             self._httpd.server_close()
 
@@ -186,3 +196,54 @@ def test_yuklenebilir(sayfa, ac, baglam):
     assert bildirim['url'].endswith('/manifest.webmanifest')
     assert bildirim['errors'] == []
 
+
+
+# --- Takılan ağ (F9) -----------------------------------------------------------
+# Bağlantı var ama sunucu yanıt vermiyor (ör. zayıf mobil veri). Servis çalışanı ağı 3 saniye bekler, sonra
+# önbellekteki dosyayı verir; ağ bir kez geç kalınca bir süre önce önbelleğe bakar (her dosya 3 sn beklemez).
+
+def test_yanit_vermeyen_sayfa_onbellekten_acilir(sayfa, ac, sunucu):
+    ac()
+    expect(sayfa.get_by_label('Parola', exact=True)).to_be_visible()
+    hazir(sayfa)
+    sunucu.takilan.update({'/', '/index.html'})
+    baslangic = time.monotonic()
+    sayfa.reload(timeout=15000)
+    expect(sayfa.get_by_label('Parola', exact=True)).to_be_visible()
+    assert time.monotonic() - baslangic < 6
+
+
+def test_tamamen_takilan_agda_birkac_saniyede_acilir(sayfa, ac, sunucu):
+    ac()
+    hazir(sayfa)
+    sunucu.takilan.add('*')  # hiçbir dosya yanıtlanmaz: her dosya 3 sn beklese açılış çok uzardı
+    baslangic = time.monotonic()
+    sayfa.reload(timeout=30000)
+    expect(sayfa.get_by_label('Parola', exact=True)).to_be_visible()
+    assert time.monotonic() - baslangic < 6
+
+
+ONBELLEKTE_YENI_STIL = """async () => {
+  const yanit = await caches.open('fazla-mesai-v1').then((o) => o.match('stil.css'));
+  return Boolean(yanit) && (await yanit.text()).includes('rgb(1, 2, 3)');
+}"""
+
+
+def test_gec_gelen_yanit_onbellegi_tazeler(sayfa, ac, baglam, ag, sunucu):
+    ac()
+    hazir(sayfa)
+    sunucu.degisen['/stil.css'] = ('text/css', 'body { background: rgb(1, 2, 3) !important }')
+    sunucu.geciken['/stil.css'] = 5
+    baslangic = time.monotonic()
+    sayfa.reload(timeout=15000)
+    expect(sayfa.get_by_label('Parola', exact=True)).to_be_visible()
+    assert time.monotonic() - baslangic < 5  # stil.css beklenmedi: önbellekteki kullanıldı
+    expect(sayfa.locator('body')).not_to_have_css('background-color', 'rgb(1, 2, 3)')
+    # ağın geç gelen yanıtı yine de önbelleğe yazılır: yeni sürüm bir sonraki açılışta gelir
+    bitis = time.monotonic() + 10
+    while not sayfa.evaluate(ONBELLEKTE_YENI_STIL):
+        assert time.monotonic() < bitis, 'geç gelen yanıt önbelleğe yazılmadı'
+        time.sleep(0.2)
+    internet_kes(baglam, ag, sunucu)
+    sayfa.reload()
+    expect(sayfa.locator('body')).to_have_css('background-color', 'rgb(1, 2, 3)')
