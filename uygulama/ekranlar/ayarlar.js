@@ -42,7 +42,7 @@ export function ekranCiz(kok, baglam) {
     } catch (hata) {
       console.error(hata);
       cikis.disabled = false;
-      bildir(hataMetni(hata));
+      bildir(hataMetni(hata), { hata: true });
       return;
     }
     location.reload();

@@ -1409,7 +1409,7 @@ html:has(dialog[open]) {
   }
 }
 
-/* --- Bildirim (altta, 2,8 sn) ---------------------------------------------- */
+/* --- Bildirim (altta, 2,8 sn; hata 6 sn) ----------------------------------- */
 
 .bildirim {
   position: fixed;

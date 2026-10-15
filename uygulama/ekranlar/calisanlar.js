@@ -246,7 +246,7 @@ export function ekranCiz(kok, baglam) {
       await yukle();
     } catch (hata) {
       console.error(hata);
-      bildir(hataMetni(hata));
+      bildir(hataMetni(hata), { hata: true });
       liste.removeAttribute('aria-busy');
     } finally {
       islemde = false;

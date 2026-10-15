@@ -331,7 +331,7 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
   // Pencere açıksa formun üstünde; kapanmışsa (çalışan listesi gelmeden kapatılmış) alttaki bildirimde.
   function sorunGoster(metin) {
     if (!pencere.open) {
-      bildir(metin);
+      bildir(metin, { hata: true });
       return;
     }
     genelHata(metin);

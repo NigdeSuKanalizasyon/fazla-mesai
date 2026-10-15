@@ -28,6 +28,7 @@ export const VERI_DEPOSU = 'fazla-mesai-veri';
 const ANAHTAR_DOSYASI = 'veri/anahtar.json';
 const ZAMAN_ASIMI = 15000; // ms; github.js ile aynı
 const BILDIRIM_SURESI = 2800; // ms
+const HATA_SURESI = 6000; // ms: hata metni okunacak kadar kalır
 
 const SIMGE = 'class="sekme-simge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" '
   + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"';
@@ -164,6 +165,7 @@ async function depoAc(token) {
 // --- Ana ekran kabuğu -----------------------------------------------------------
 
 // baglam = { kayitlar, durum: { ay: 'YYYY-MM' }, bildir, hataMetni, yenile(): Promise<void> }
+// bildir(metin) bilgi, bildir(hataMetni(hata), { hata: true }) hata bildirimidir (bkz. aşağıda).
 // Her sekme modülü ekranCiz(kok, baglam) verir. Her çizimde yeni bir kok elementi verilir:
 // sekme değişince eski, yarım kalmış çizim sayfadan kopmuş elemente yazar, ekranı bozmaz.
 function kabukCiz(kok, kayitlar) {
@@ -242,11 +244,12 @@ function bildirimAlani() {
   return alan;
 }
 
-// Alttaki kısa bildirim; 2,8 saniye görünür. Yeni bildirim eskisinin yerine geçer.
-export function bildir(metin) {
+// Alttaki kısa bildirim; 2,8 saniye görünür, hata bildirimi ({ hata: true }) 6 saniye. Yeni bildirim eskisinin
+// yerine geçer.
+export function bildir(metin, { hata = false } = {}) {
   const alan = bildirimAlani();
   alan.textContent = metin;
   alan.classList.add('gorunur');
   clearTimeout(bildirimZamanlayici);
-  bildirimZamanlayici = setTimeout(() => alan.classList.remove('gorunur'), BILDIRIM_SURESI);
+  bildirimZamanlayici = setTimeout(() => alan.classList.remove('gorunur'), hata ? HATA_SURESI : BILDIRIM_SURESI);
 }

@@ -258,7 +258,7 @@ export function ekranCiz(kok, baglam) {
       girdi = await ciktiVerisi();
     } catch (hata) {
       console.error(hata);
-      bildir(hataMetni(hata));
+      bildir(hataMetni(hata), { hata: true });
       return;
     }
     yazdir(girdi);
@@ -272,7 +272,7 @@ export function ekranCiz(kok, baglam) {
       kutuphane = await kutuphaneYukle();
     } catch (hata) {
       console.error(hata);
-      bildir(KUTUPHANE_HATASI);
+      bildir(KUTUPHANE_HATASI, { hata: true });
       return;
     }
     let girdi;
@@ -280,7 +280,7 @@ export function ekranCiz(kok, baglam) {
       girdi = await ciktiVerisi();
     } catch (hata) {
       console.error(hata);
-      bildir(hataMetni(hata));
+      bildir(hataMetni(hata), { hata: true });
       return;
     }
     let sonuc;
@@ -289,7 +289,7 @@ export function ekranCiz(kok, baglam) {
       sonuc = await pdfPaylas(bayt, pdfDosyaAdi(girdi.ay));
     } catch (hata) {
       console.error(hata);
-      bildir(hataMetni(hata));
+      bildir(hataMetni(hata), { hata: true });
       return;
     }
     if (sonuc === 'indirildi') bildir('PDF indirildi');

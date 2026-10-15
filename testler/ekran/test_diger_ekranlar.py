@@ -404,6 +404,19 @@ def test_pasife_al_hata_listeyi_bozmaz(hazirla, sayfa, sahte_github, kayit_oku):
     assert next(c for c in kayit_oku('calisanlar.json')['calisanlar'] if c['id'] == 'c_ali')['aktif'] is True
 
 
+def test_hata_bildirimi_daha_uzun_kalir(hazirla, sayfa, sahte_github):
+    """M2: hata bildirimi okunacak kadar kalır (6 sn); bilgi bildirimi 2,8 sn."""
+    hazirla()
+    sekmeye_git(sayfa, 'calisanlar')
+    sahte_github.yazma_durumu = 401
+    satir_kutusu(sayfa, 'c_ali').get_by_role('button', name='Pasife al', exact=True).click()
+    expect(bildirim(sayfa)).to_have_text(YETKI)
+    expect(bildirim(sayfa)).to_be_visible()
+    sayfa.wait_for_timeout(4000)
+    expect(bildirim(sayfa)).to_be_visible()  # 2,8 sn geçti: hata metni hâlâ okunuyor
+    expect(bildirim(sayfa)).to_be_hidden(timeout=4000)  # 6 sn sonra kalkar
+
+
 def test_calisanlar_bos(hazirla, sayfa):
     hazirla(calisanlar={'calisanlar': []})
     sekmeye_git(sayfa, 'calisanlar')
