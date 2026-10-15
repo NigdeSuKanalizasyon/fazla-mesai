@@ -290,17 +290,27 @@ function indir(dosya) {
   setTimeout(() => URL.revokeObjectURL(adres), 60000)?.unref?.();
 }
 
-// Dosya paylaşımı varsa paylaş menüsünü açar (telefonda WhatsApp), yoksa PDF'i indirir.
-// Sonuç: 'paylasildi' | 'indirildi' | 'vazgecildi' (paylaş menüsü kapatıldı, AbortError).
-// Paylaşım beklenmedik bir hatayla düşerse (ör. dokunma izni süresi dolmuş) PDF yine de iner.
-export async function pdfPaylas(bayt, dosyaAdi) {
+// Telefon ya da tablet mi (dokunmatik ekran)? Bilgisayarda (fare) false.
+function dokunmatik() {
+  return globalThis.matchMedia?.('(pointer: coarse)').matches === true;
+}
+
+// Telefonda ve tablette (dokunmatik ekran) dosya paylaşımı varsa paylaş menüsü açılır (WhatsApp); bilgisayarda
+// (fare) ve dosya paylaşımı olmayan tarayıcıda PDF iner, işletim sisteminin paylaş penceresi açılmaz (spec 8.3).
+// Sonuç: 'paylasildi' | 'indirildi' | 'vazgecildi' (paylaş menüsü kapatıldı, AbortError) | 'izin-yok'.
+// 'izin-yok': tarayıcı paylaşmayı reddetti (NotAllowedError), çünkü düğmeye dokunulalı birkaç saniyeden fazla
+// geçti (yavaş bağlantıda veri okunurken). PDF sessizce indirilmez: çağıran baytları saklar, bir "Gönder" düğmesi
+// gösterir ve yeni dokunuşla { yeniden: true } ile yeniden çağırır. Yeniden denemede izin yine yoksa (ör. sayfa
+// paylaşım izni olmayan bir çerçevede) PDF iner. Paylaşım başka beklenmedik bir hatayla düşerse PDF yine iner.
+export async function pdfPaylas(bayt, dosyaAdi, { yeniden = false } = {}) {
   const dosya = new File([bayt], dosyaAdi, { type: 'application/pdf' });
-  if (navigator.canShare?.({ files: [dosya] })) {
+  if (dokunmatik() && navigator.canShare?.({ files: [dosya] })) {
     try {
       await navigator.share({ files: [dosya] });
       return 'paylasildi';
     } catch (hata) {
       if (hata?.name === 'AbortError') return 'vazgecildi';
+      if (hata?.name === 'NotAllowedError' && !yeniden) return 'izin-yok';
     }
   }
   indir(dosya);

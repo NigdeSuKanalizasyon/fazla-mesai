@@ -29,6 +29,7 @@ const ANAHTAR_DOSYASI = 'veri/anahtar.json';
 const ZAMAN_ASIMI = 15000; // ms; github.js ile aynı
 const BILDIRIM_SURESI = 2800; // ms
 const HATA_SURESI = 6000; // ms: hata metni okunacak kadar kalır
+const EYLEM_SURESI = 10000; // ms: düğmeli bildirim, dokunacak kadar kalır
 
 const SIMGE = 'class="sekme-simge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" '
   + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"';
@@ -165,7 +166,8 @@ async function depoAc(token) {
 // --- Ana ekran kabuğu -----------------------------------------------------------
 
 // baglam = { kayitlar, durum: { ay: 'YYYY-MM' }, bildir, hataMetni, yenile(): Promise<void> }
-// bildir(metin) bilgi, bildir(hataMetni(hata), { hata: true }) hata bildirimidir (bkz. aşağıda).
+// bildir(metin) bilgi, bildir(hataMetni(hata), { hata: true }) hata bildirimidir; { eylem: { metin, yap } } bildirime
+// bir düğme ekler (bkz. aşağıda).
 // Her sekme modülü ekranCiz(kok, baglam) verir. Her çizimde yeni bir kok elementi verilir:
 // sekme değişince eski, yarım kalmış çizim sayfadan kopmuş elemente yazar, ekranı bozmaz.
 function kabukCiz(kok, kayitlar) {
@@ -244,12 +246,31 @@ function bildirimAlani() {
   return alan;
 }
 
+function bildirimiKaldir() {
+  clearTimeout(bildirimZamanlayici);
+  bildirimAlani().classList.remove('gorunur');
+}
+
 // Alttaki kısa bildirim; 2,8 saniye görünür, hata bildirimi ({ hata: true }) 6 saniye. Yeni bildirim eskisinin
-// yerine geçer.
-export function bildir(metin, { hata = false } = {}) {
+// yerine geçer. eylem: { metin, yap } bildirime bir düğme ekler (ör. PDF'i yeni dokunuşla göndermek için); düğmeli
+// bildirim 10 saniye kalır, düğmeye basınca kalkar ve yap() çağrılır (dokunuşun izniyle: paylaş menüsü açılabilir).
+export function bildir(metin, { hata = false, eylem = null } = {}) {
   const alan = bildirimAlani();
-  alan.textContent = metin;
+  alan.replaceChildren(metin);
+  alan.classList.toggle('bildirim-eylemli', eylem !== null);
+  if (eylem) {
+    const dugme = document.createElement('button');
+    dugme.type = 'button';
+    dugme.className = 'bildirim-dugmesi';
+    dugme.textContent = eylem.metin;
+    dugme.addEventListener('click', () => {
+      bildirimiKaldir();
+      eylem.yap();
+    }, { once: true });
+    alan.append(dugme);
+  }
   alan.classList.add('gorunur');
   clearTimeout(bildirimZamanlayici);
-  bildirimZamanlayici = setTimeout(() => alan.classList.remove('gorunur'), hata ? HATA_SURESI : BILDIRIM_SURESI);
+  const sure = eylem ? EYLEM_SURESI : (hata ? HATA_SURESI : BILDIRIM_SURESI);
+  bildirimZamanlayici = setTimeout(() => alan.classList.remove('gorunur'), sure);
 }

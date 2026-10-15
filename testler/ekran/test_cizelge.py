@@ -694,3 +694,84 @@ def test_cikti_alani_yokken_ctrl_p_not_basar(hazirla, sayfa):
     assert sayfa.evaluate("getComputedStyle(document.body, '::before').content") == YAZDIRMA_NOTU
     pdf = sayfa.pdf(prefer_css_page_size=True)
     assert len(re.findall(rb'/Type\s*/Page(?![a-z])', pdf)) == 1
+
+
+# Sahte Web Share: her paylaşılan dosya window.__paylasimlar'a yazılır; ilk window.__izinsiz paylaşım
+# NotAllowedError ile düşer (dokunma izninin süresi doldu: yavaş bağlantıda veri okunurken).
+PAYLASIM_TAKLIDI = """(() => {
+  window.__paylasimlar = [];
+  window.__izinsiz = 0;
+  Object.defineProperty(Navigator.prototype, 'canShare', {
+    configurable: true, value: (veri) => Boolean(veri?.files?.length) });
+  Object.defineProperty(Navigator.prototype, 'share', { configurable: true, value: async (veri) => {
+    window.__paylasimlar.push(veri.files.map((f) => [f.name, f.type, f.size]));
+    if (window.__paylasimlar.length <= window.__izinsiz) throw new DOMException('Dokunma izni yok.', 'NotAllowedError');
+  } });
+})();"""
+FARE_TAKLIDI = """(() => {
+  const asil = window.matchMedia.bind(window);
+  window.matchMedia = (sorgu) => asil(sorgu === '(pointer: coarse)' ? 'not all' : sorgu);
+})();"""
+
+
+def indirmeleri_say(sayfa):
+    indirmeler = []
+    sayfa.on('download', lambda indirme: indirmeler.append(indirme.suggested_filename))
+    return indirmeler
+
+
+def test_cizelge_acilinca_pdf_kutuphanesi_onceden_yuklenir(hazirla, sayfa):
+    """F6: PDF kütüphanesi ekran açılınca arka planda yüklenir; PDF / Gönder'e basınca beklenmez."""
+    hazirla()
+    sayfa.wait_for_function('Boolean(window.jspdf?.jsPDF)', timeout=5000)
+
+
+def test_pdf_telefonda_paylasir(hazirla, sayfa):
+    """F7: dokunmatik ekranda (pointer: coarse) paylaş menüsü açılır, PDF inmez."""
+    sayfa.add_init_script(PAYLASIM_TAKLIDI)
+    hazirla({'2026-10': [satir('s_1', '2026-10-14')]})
+    indirmeler = indirmeleri_say(sayfa)
+    assert sayfa.evaluate("matchMedia('(pointer: coarse)').matches")
+    sayfa.get_by_role('button', name='PDF / Gönder').click()
+    sayfa.wait_for_function('window.__paylasimlar.length === 1')
+    [[ad, tur, boyut]] = sayfa.evaluate('window.__paylasimlar[0]')
+    assert (ad, tur) == ('Fazla_Mesai_2026-10.pdf', 'application/pdf') and boyut > 1000
+    sayfa.wait_for_timeout(500)
+    assert indirmeler == []
+    expect(bildirim(sayfa)).not_to_have_text('PDF indirildi')
+
+
+def test_pdf_bilgisayarda_paylasim_olsa_da_indirir(hazirla, sayfa):
+    """F7: bilgisayarda (fare, pointer: fine) PDF iner; işletim sisteminin paylaş penceresi açılmaz."""
+    sayfa.add_init_script(PAYLASIM_TAKLIDI)
+    sayfa.add_init_script(FARE_TAKLIDI)
+    hazirla({'2026-10': [satir('s_1', '2026-10-14')]})
+    with sayfa.expect_download() as bilgi:
+        sayfa.get_by_role('button', name='PDF / Gönder').click()
+    assert bilgi.value.suggested_filename == 'Fazla_Mesai_2026-10.pdf'
+    expect(bildirim(sayfa)).to_have_text('PDF indirildi')
+    assert sayfa.evaluate('window.__paylasimlar.length') == 0
+
+
+def test_pdf_paylasma_izni_dusunce_gonder_dugmesi(hazirla, sayfa, sahte_github):
+    """F6: paylaşma izni düşerse (NotAllowedError) PDF sessizce inmez; üretilen PDF saklanır, bildirimdeki
+    Gönder düğmesi yeni dokunuşla aynı PDF'i yeniden paylaşır (GitHub yeniden okunmaz)."""
+    sayfa.add_init_script(PAYLASIM_TAKLIDI)
+    hazirla({'2026-10': [satir('s_1', '2026-10-14')]})
+    sayfa.evaluate('window.__izinsiz = 1')
+    indirmeler = indirmeleri_say(sayfa)
+    sayfa.get_by_role('button', name='PDF / Gönder').click()
+    gonder = bildirim(sayfa).get_by_role('button', name='Gönder', exact=True)
+    expect(gonder).to_be_visible()
+    expect(bildirim(sayfa)).to_contain_text('PDF hazır.')
+    assert sayfa.evaluate('window.__paylasimlar.length') == 1
+    istek_sayisi = len(sahte_github.istekler)
+
+    gonder.click()
+    sayfa.wait_for_function('window.__paylasimlar.length === 2')
+    ilk, ikinci = sayfa.evaluate('window.__paylasimlar')
+    assert ilk == ikinci and ilk[0][0] == 'Fazla_Mesai_2026-10.pdf'  # aynı PDF
+    assert len(sahte_github.istekler) == istek_sayisi  # veri yeniden okunmadı
+    expect(bildirim(sayfa)).to_be_hidden()
+    sayfa.wait_for_timeout(500)
+    assert indirmeler == []  # hiçbir aşamada sessizce inmedi

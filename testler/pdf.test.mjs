@@ -340,11 +340,20 @@ test('tarayici_islevleri_node_da_ice_aktarilir', () => {
 });
 
 // --- pdfPaylas: tarayıcı API'leri sahtelerle ---------------------------------
-function sahteTarayici({ canShare, share }) {
+// dokunmatik: matchMedia('(pointer: coarse)') sonucu (telefon/tablet true, bilgisayar false); null: matchMedia yok.
+function sahteTarayici({ canShare, share, dokunmatik = true }) {
   const eskiNav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
   const eskiDoc = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const eskiMedya = Object.getOwnPropertyDescriptor(globalThis, 'matchMedia');
   const olaylar = [];
   Object.defineProperty(globalThis, 'navigator', { value: { canShare, share }, configurable: true, writable: true });
+  if (dokunmatik !== null) {
+    Object.defineProperty(globalThis, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (sorgu) => ({ media: sorgu, matches: sorgu === '(pointer: coarse)' ? dokunmatik : !dokunmatik }),
+    });
+  }
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
     writable: true,
@@ -362,6 +371,7 @@ function sahteTarayici({ canShare, share }) {
     geri() {
       if (eskiNav) Object.defineProperty(globalThis, 'navigator', eskiNav); else delete globalThis.navigator;
       if (eskiDoc) Object.defineProperty(globalThis, 'document', eskiDoc); else delete globalThis.document;
+      if (eskiMedya) Object.defineProperty(globalThis, 'matchMedia', eskiMedya); else delete globalThis.matchMedia;
     },
   };
 }
@@ -413,9 +423,62 @@ test('pdfPaylas_dosya_paylasimi_desteklenmiyorsa_indirir', async () => {
 test('pdfPaylas_beklenmeyen_hatada_indirmeye_duser', async () => {
   const t = sahteTarayici({
     canShare: () => true,
-    share: async () => { throw Object.assign(new Error('izin yok'), { name: 'NotAllowedError' }); },
+    share: async () => { throw Object.assign(new Error('desteklenmiyor'), { name: 'DataError' }); },
   });
   try {
     assert.equal(await pdfPaylas(bayt, 'a.pdf'), 'indirildi');
+    assert.equal(t.olaylar[0][0], 'tikla');
+  } finally { t.geri(); }
+});
+
+// F7: bilgisayarda (fare, pointer: fine) paylaşım olsa da PDF iner; işletim sisteminin paylaş penceresi açılmaz.
+test('pdfPaylas_bilgisayarda_paylasim_olsa_da_indirir', async () => {
+  let paylasim = 0;
+  const t = sahteTarayici({ dokunmatik: false, canShare: () => true, share: async () => { paylasim++; } });
+  try {
+    assert.equal(await pdfPaylas(bayt, 'Fazla_Mesai_2026-10.pdf'), 'indirildi');
+    assert.equal(paylasim, 0, 'paylaş penceresi açılmaz');
+    assert.deepEqual(t.olaylar.map((o) => o.slice(0, 2)), [['tikla', 'Fazla_Mesai_2026-10.pdf'], ['kaldir']]);
+  } finally { t.geri(); }
+});
+
+test('pdfPaylas_matchMedia_yoksa_indirir', async () => {
+  let paylasim = 0;
+  const t = sahteTarayici({ dokunmatik: null, canShare: () => true, share: async () => { paylasim++; } });
+  try {
+    assert.equal(await pdfPaylas(bayt, 'a.pdf'), 'indirildi');
+    assert.equal(paylasim, 0);
+  } finally { t.geri(); }
+});
+
+// F6: paylaşma izni düştü (dokunuştan bu yana çok zaman geçti, yavaş bağlantı): PDF sessizce inmez, 'izin-yok'
+// döner; çağıran "Gönder" düğmesi gösterir, yeni dokunuşla { yeniden: true } ile yeniden paylaşır.
+test('pdfPaylas_izin_yoksa_indirmez_izin_yok_doner', async () => {
+  const paylasilanlar = [];
+  const t = sahteTarayici({
+    canShare: () => true,
+    share: async (v) => {
+      paylasilanlar.push(v.files[0]);
+      if (paylasilanlar.length === 1) throw Object.assign(new Error('izin yok'), { name: 'NotAllowedError' });
+    },
+  });
+  try {
+    assert.equal(await pdfPaylas(bayt, 'Fazla_Mesai_2026-10.pdf'), 'izin-yok');
+    assert.equal(t.olaylar.length, 0, 'indirme tetiklenmez');
+    assert.equal(await pdfPaylas(bayt, 'Fazla_Mesai_2026-10.pdf', { yeniden: true }), 'paylasildi');
+    assert.equal(paylasilanlar.length, 2);
+    assert.deepEqual(new Uint8Array(await paylasilanlar[1].arrayBuffer()), bayt);
+    assert.equal(t.olaylar.length, 0);
+  } finally { t.geri(); }
+});
+
+test('pdfPaylas_yeniden_denemede_izin_yine_yoksa_indirir', async () => {
+  const t = sahteTarayici({
+    canShare: () => true,
+    share: async () => { throw Object.assign(new Error('izin yok'), { name: 'NotAllowedError' }); },
+  });
+  try {
+    assert.equal(await pdfPaylas(bayt, 'a.pdf', { yeniden: true }), 'indirildi'); // ör. çerçeve izni yok
+    assert.equal(t.olaylar[0][0], 'tikla');
   } finally { t.geri(); }
 });

@@ -8,6 +8,9 @@
 // az önce kaydedilip listesi henüz tazelenmemiş satır da çıktıya girer); liste de aynı okumayla tazelenir.
 // Yazdır'ın çıktısı yazdırma bitince silinir: tarayıcının kendi yazdırması (Ctrl+P, menüden Yazdır) sonradan
 // eski bir çıktıyı basmaz (stil.css o zaman kısa bir not basar).
+// PDF / Gönder: tarayıcı paylaş menüsünü yalnız dokunuştan sonraki birkaç saniye içinde açar. Bu yüzden PDF
+// kütüphanesi ekran açılınca arka planda yüklenir, veri ile kütüphane aynı anda beklenir; yine de geç kalınırsa
+// üretilen PDF saklanır ve bildirimdeki "Gönder" düğmesi yeni bir dokunuşla onu paylaşır.
 
 import { fazlaMesaiDakika, sureYaz } from '../sure.js';
 import { haftaGunu, istanbulSimdi, tarihYaz } from '../tarih.js';
@@ -220,6 +223,22 @@ export function ekranCiz(kok, baglam) {
     return listeyiYukle();
   }
 
+  // Paylaşır ya da indirir (pdf.js). İzin düşerse PDF inmez; baytlar saklanır, Gönder yeni dokunuşla yeniden dener.
+  async function gonder(bayt, dosyaAdi, secenek) {
+    let sonuc;
+    try {
+      sonuc = await pdfPaylas(bayt, dosyaAdi, secenek);
+    } catch (hata) {
+      console.error(hata);
+      bildir(hataMetni(hata), { hata: true });
+      return;
+    }
+    if (sonuc === 'indirildi') bildir('PDF indirildi');
+    else if (sonuc === 'izin-yok') {
+      bildir('PDF hazır.', { eylem: { metin: 'Gönder', yap: () => gonder(bayt, dosyaAdi, { yeniden: true }) } });
+    }
+  }
+
   function formAc(satir) {
     mesaiFormuAc({ baglam, satir, calisanlar: veri?.calisanlar ?? null, degisince });
   }
@@ -267,9 +286,14 @@ export function ekranCiz(kok, baglam) {
   }));
 
   pdfDugmesi.addEventListener('click', () => mesgulIken(pdfDugmesi, async () => {
+    // Kütüphane ve veri aynı anda beklenir (paylaş menüsü dokunuştan sonraki birkaç saniyede açılmalı).
+    const kutuphaneVaadi = kutuphaneYukle();
+    const girdiVaadi = ciktiVerisi();
+    kutuphaneVaadi.catch(() => {}); // hatalar aşağıda, sırayla ele alınır
+    girdiVaadi.catch(() => {});
     let kutuphane;
     try {
-      kutuphane = await kutuphaneYukle();
+      kutuphane = await kutuphaneVaadi;
     } catch (hata) {
       console.error(hata);
       bildir(KUTUPHANE_HATASI, { hata: true });
@@ -277,23 +301,26 @@ export function ekranCiz(kok, baglam) {
     }
     let girdi;
     try {
-      girdi = await ciktiVerisi();
+      girdi = await girdiVaadi;
     } catch (hata) {
       console.error(hata);
       bildir(hataMetni(hata), { hata: true });
       return;
     }
-    let sonuc;
+    let bayt;
     try {
-      const bayt = pdfUret({ ...kutuphane, ...girdi });
-      sonuc = await pdfPaylas(bayt, pdfDosyaAdi(girdi.ay));
+      bayt = pdfUret({ ...kutuphane, ...girdi });
     } catch (hata) {
       console.error(hata);
       bildir(hataMetni(hata), { hata: true });
       return;
     }
-    if (sonuc === 'indirildi') bildir('PDF indirildi');
+    await gonder(bayt, pdfDosyaAdi(girdi.ay));
   }));
 
-  return listeyiYukle();
+  // PDF kütüphanesi liste geldikten sonra (açılışı yavaşlatmadan) arka planda yüklenir. Hata burada yok sayılır;
+  // PDF / Gönder'e basınca yeniden denenir.
+  const ilkYukleme = listeyiYukle();
+  ilkYukleme.then(() => kutuphaneYukle().catch(() => {}));
+  return ilkYukleme;
 }

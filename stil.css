@@ -1440,6 +1440,38 @@ html:has(dialog[open]) {
   transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s;
 }
 
+/* Düğmeli bildirim (ör. "PDF hazır." + Gönder): düğmeye dokunulabilir. */
+.bildirim.bildirim-eylemli {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-block: 0.5rem;
+  padding-inline-end: 0.5rem;
+}
+
+.bildirim.bildirim-eylemli.gorunur {
+  pointer-events: auto;
+}
+
+.bildirim-dugmesi {
+  appearance: none;
+  flex: none;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1.5px solid currentColor;
+  border-radius: var(--kose);
+  background: transparent;
+  color: inherit;
+  font: 600 0.9375rem/1.2 var(--yazitipi-govde);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bildirim-dugmesi:focus-visible {
+  outline: 3px solid var(--odak);
+  outline-offset: 2px;
+}
+
 body:has(.sekmeler) .bildirim {
   bottom: calc(var(--sekme-yuksekligi) + env(safe-area-inset-bottom) + 0.75rem);
 }
