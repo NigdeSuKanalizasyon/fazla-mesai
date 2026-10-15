@@ -51,7 +51,7 @@ Sunucu yok. Sayfa GitHub Pages'ten, kayıtlar GitHub'dan gelir. Sadece yetkili k
 
 Token, uygulamanın veri deposuna yazabilmesi için GitHub'dan aldığın gizli anahtardır. Hem token hem kayıtlar ortak parolayla şifrelidir; parolayı bilmeyen göremez.
 
-GitHub anahtarının bitiş tarihi: (Görev 12'de yazılacak)
+GitHub anahtarının bitiş tarihi: süresiz (No expiration), 15 Ekim 2026'da oluşturuldu. Kendiliğinden bitmediği için, sızdığından şüphelenirsen hemen aşağıdaki “Biri ayrılırsa ya da parola başkasına geçerse” bölümündeki adımları uygula.
 
 Süresi dolunca uygulama "GitHub anahtarının süresi dolmuş. Anıl'a haber verin." der. Dolmadan önce yenile: GitHub'da aynı ayarlarla yeni token oluştur, sonra aşağıdaki **kurulum** aracındaki "Token'ı yeniliyorum" bölümünü kullan.
 
