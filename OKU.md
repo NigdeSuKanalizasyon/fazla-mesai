@@ -20,6 +20,7 @@ Sunucu yok. Sayfa GitHub Pages'ten, kayıtlar GitHub'dan gelir. Sadece yetkili k
 
 - Tek kutu var: **Parola**. Ortak parolayı yazınca içeri girilir.
 - Aynı cihazda **30 gün** parola sorulmaz. Sonra yeniden sorulur.
+- iPhone'da (Safari) uygulama 7 gün kadar hiç açılmazsa Safari bu girişi silebilir, parola erken sorulur. Bunu önlemek için iPhone'da uygulamayı ana ekrana ekle (Paylaş → Ana Ekrana Ekle).
 - Ayarlar ekranındaki **Çıkış** bu cihazdaki girişi kapatır.
 - Parola unutulursa kayıtlar hiçbir şekilde açılamaz. Parolayı güvenli bir yerde sakla.
 
@@ -36,8 +37,8 @@ Sunucu yok. Sayfa GitHub Pages'ten, kayıtlar GitHub'dan gelir. Sadece yetkili k
 
 Çizelge ekranının üstündeki düğmeler:
 
-- **Yazdır:** yatay A4, sayfada 20 satır. Başlık ve imza alanı her sayfada vardır.
-- **PDF / Gönder:** telefonda paylaşma menüsü açılır; WhatsApp'ı seçersen PDF dosya olarak gider. Bilgisayarda PDF iner (adı `Fazla_Mesai_2026-10.pdf` gibi).
+- **Yazdır:** yatay A4, sayfada 20 satır. Başlık ve imza alanı her sayfada vardır. Tarayıcının kendi yazdırma menüsü (Ctrl+P) çizelgeyi basmaz; her zaman bu düğmeyi kullan.
+- **PDF / Gönder:** telefonda ve tablette paylaşma menüsü açılır; WhatsApp'ı seçersen PDF dosya olarak gider. Bilgisayarda paylaşma menüsü açılmaz, PDF iner (adı `Fazla_Mesai_2026-10.pdf` gibi). İnternet yavaşsa telefon menüyü açmayabilir; o zaman altta "PDF hazır." ve **Gönder** düğmesi çıkar, ona dokununca menü açılır.
 
 ## Kayıtlar nerede?
 
@@ -53,6 +54,31 @@ Token, uygulamanın veri deposuna yazabilmesi için GitHub'dan aldığın gizli 
 GitHub anahtarının bitiş tarihi: (Görev 12'de yazılacak)
 
 Süresi dolunca uygulama "GitHub anahtarının süresi dolmuş. Anıl'a haber verin." der. Dolmadan önce yenile: GitHub'da aynı ayarlarla yeni token oluştur, sonra aşağıdaki **kurulum** aracındaki "Token'ı yeniliyorum" bölümünü kullan.
+
+## Biri ayrılırsa ya da parola başkasına geçerse
+
+Parolayı değiştirmek tek başına yetmez: eski `anahtar.json` herkese açık deponun geçmişinde durur, eski parolayı bilen biri oradan eski token'ı çözebilir. Bu yüzden token da değişir. Sırayla, çalışma saatleri dışında:
+
+1. GitHub'da aynı ayarlarla **yeni bir token** oluştur.
+2. **`parola-degistir.html`** ile parolayı değiştir (yeni parola). İnen `anahtar.json`'ı henüz yayınlama.
+3. **`kurulum.html`**'de "Token'ı yeniliyorum" bölümünü aç: 2. adımda inen `anahtar.json`'ı seç, **yeni token**'ı ve **yeni parolayı** yaz, **Oluştur**'a bas. İnen dosyayı `veri` klasörüne koy ve yayınla.
+4. GitHub ayarlarında (Settings → Developer settings → Fine-grained tokens) **eski token'ı sil** (Revoke).
+
+2. adımdan yayına kadar uygulama kayıtları açamaz. Yeni parolayı yetkililere söyle.
+
+## Kayıtların yedeği
+
+`fazla-mesai-veri` deposunun bir kopyasını kendi bilgisayarında tut. Bir kere:
+
+```powershell
+gh repo clone NigdeSuKanalizasyon/fazla-mesai-veri
+```
+
+Sonra arada bir o klasörde `git pull` yaz. Dosyalar şifrelidir; açmak için o tarihteki parola gerekir.
+
+## Aynı adresteki diğer uygulamalar
+
+`nigdesukanalizasyon.github.io` adresindeki her uygulama (mağaza, eski `mesai-takip`) bu uygulamanın tarayıcıda sakladığı girişe ulaşabilir; o adreste çalışan kötü bir kod kayıtları da açabilir. Bu yüzden bu adreste başka sitelerden kod (script) yükleyen bir uygulama yayınlama. Eski `mesai-takip` sitesini de ileride kapat.
 
 ## Araçlar
 
@@ -71,7 +97,9 @@ Süresi dolunca uygulama "GitHub anahtarının süresi dolmuş. Anıl'a haber ve
 .\araclar\geri-getir.ps1 -Yol mesai/2026-10.json -Tarih 2026-10-12
 ```
 
-Araç o tarihten önceki son hali bulur, ne yapacağını yazar ve **E/H** diye sorar. E dersen dosyanın şu anki içeriğinin üzerine o hali yazar. Dosya yolu `calisanlar.json`, `ayarlar.json` ya da `mesai/YYYY-MM.json` olabilir. Betik çalışmazsa şunu dene: `powershell -ExecutionPolicy Bypass -File .\araclar\geri-getir.ps1 -Yol ... -Tarih ...`
+Araç o tarihten önceki son hali bulur, ne yapacağını yazar ve **E/H** diye sorar. E dersen dosyanın şu anki içeriğinin üzerine o hali yazar. Dosya yolu `calisanlar.json`, `ayarlar.json` ya da `mesai/YYYY-MM.json` olabilir.
+
+Dikkat: parola değiştiyse, değişiklikten önceki bir tarihe döndürülen dosya eski parolayla şifrelidir; uygulama onu açamaz ("Bu ayın kaydı açılamadı."). Parola değişikliğinden önceki bir tarihe döndürme. Betik çalışmazsa şunu dene: `powershell -ExecutionPolicy Bypass -File .\araclar\geri-getir.ps1 -Yol ... -Tarih ...`
 
 ## Bu klasöre ne konmaz
 
@@ -81,6 +109,6 @@ Klasördeki tek gizli şey `veri/anahtar.json`'dır ve o da şifrelidir. Testler
 
 ## Güncelleme nasıl yayınlanır?
 
-Claude değişikliği kaydeder (commit) ve `gh` ile `fazla-mesai` deposuna gönderir. GitHub Pages 1–2 dakikada yeni sürümü yayınlar. İnternet varken uygulama her açılışta en yeni dosyaları alır; yani yayından sonra uygulamayı kapatıp yeniden açmak yeter.
+Claude değişikliği kaydeder (commit) ve `gh` ile `fazla-mesai` deposuna gönderir. GitHub Pages 1–2 dakikada yeni sürümü yayınlar. İnternet varken uygulama her açılışta en yeni dosyaları alır; yani yayından sonra uygulamayı kapatıp yeniden açmak yeter. İnternet çok yavaşsa (3 saniyede yanıt gelmezse) uygulama beklemez, telefondaki kopyayla açılır; yeni sürüm bir sonraki açılışta gelir.
 
 Uygulamaya yeni bir dosya eklenirse `sw.js` içindeki dosya listesine de eklenir (testler bunu denetler); böylece uygulama internetsiz de açılır.

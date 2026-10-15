@@ -25,6 +25,20 @@ test('oku_md_zorunlu_satirlar', () => {
   assert.ok(oku_md.split('\n').length < 120, 'OKU.md kısa kalmalı');
 });
 
+// Son düzeltme turu (F2, F3, M3): token değişimi, yedek, aynı adres, geri getirme ve iPhone uyarıları.
+test('oku_md_guvenlik_ve_bakim_notlari', () => {
+  const oku_md = oku('OKU.md');
+  for (const kelime of ['yeni bir token', 'yeni parolayı', "Token'ı yeniliyorum", 'eski token\'ı sil',
+    'gh repo clone NigdeSuKanalizasyon/fazla-mesai-veri', 'git pull', 'nigdesukanalizasyon.github.io` adresindeki',
+    'mesai-takip', 'Parola değişikliğinden önceki bir tarihe döndürme', '7 gün', 'ana ekrana ekle',
+    'Bilgisayarda paylaşma menüsü açılmaz, PDF iner', '**Gönder**']) {
+    assert.ok(oku_md.includes(kelime), `OKU.md'de yok: ${kelime}`);
+  }
+  const sira = ['yeni bir token', 'parola-degistir.html`** ile', "kurulum.html`**'de \"Token'ı yeniliyorum", 'eski token\'ı sil']
+    .map((k) => oku_md.indexOf(k));
+  assert.deepEqual([...sira].sort((a, b) => a - b), sira, 'adımlar sırayla: token, parola, kurulum, eskiyi sil');
+});
+
 test('oku_md_gercek_token_ya_da_parola_icermez', () => {
   const oku_md = oku('OKU.md');
   assert.ok(!/github_pat_[A-Za-z0-9_]{10,}|ghp_[A-Za-z0-9]{10,}/.test(oku_md));
