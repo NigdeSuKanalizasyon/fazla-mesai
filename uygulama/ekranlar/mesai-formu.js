@@ -52,12 +52,13 @@ function adaGore(a, b) {
   return a.ad.localeCompare(b.ad, 'tr');
 }
 
-// mesaiFormuAc({ baglam, satir?, calisanlar?, degisince? })
+// mesaiFormuAc({ baglam, satir?, degisince? })
 //   satir       verilirse Düzenle (Sil de vardır), verilmezse Mesai ekle
-//   calisanlar  ekranın elinde varsa (yoksa pencere kendisi yükler)
 //   degisince   kayıttan/silmeden sonra (ve yarım kalan taşımada) çağrılır; eklemede { ay } ile.
 //               Verilmezse baglam.yenile().
-export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisince = () => baglam.yenile() }) {
+// Çalışan listesi her açılışta GitHub'dan taze okunur: başka bir cihazda az önce eklenen ya da pasife alınan
+// çalışan da doğru görünür.
+export function mesaiFormuAc({ baglam, satir = null, degisince = () => baglam.yenile() }) {
   const { kayitlar, bildir, hataMetni } = baglam;
   const duzenleme = satir !== null;
   const k = `mf${++sayac}`;
@@ -428,8 +429,7 @@ export function mesaiFormuAc({ baglam, satir = null, calisanlar = null, degisinc
   kap().append(pencere);
   pencere.showModal();
 
-  const calisanVaadi = calisanlar ? Promise.resolve(calisanlar) : kayitlar.calisanlar();
-  calisanVaadi
+  kayitlar.calisanlar()
     .then((liste) => {
       tumCalisanlar = liste;
       secimCiz();

@@ -775,3 +775,19 @@ def test_pdf_paylasma_izni_dusunce_gonder_dugmesi(hazirla, sayfa, sahte_github):
     expect(bildirim(sayfa)).to_be_hidden()
     sayfa.wait_for_timeout(500)
     assert indirmeler == []  # hiçbir aşamada sessizce inmedi
+
+
+def test_form_calisan_listesini_taze_okur(hazirla, sayfa, kayit_yaz):
+    """M1: Mesai ekle ve Düzenle penceresi çalışan listesini her açılışta GitHub'dan taze okur: liste
+    yüklendikten sonra başka bir cihazda eklenen çalışan da seçilebilir."""
+    hazirla({'2026-10': [satir('s_1', '2026-10-14')]})
+    yeni = {'id': 'c_sule2', 'ad': 'Şule Işık', 'aktif': True}
+    kayit_yaz({'calisanlar.json': {'calisanlar': CALISANLAR['calisanlar'] + [yeni]}})  # başka cihaz ekledi
+    form = mesai_ekle(sayfa)
+    expect(form.get_by_label('Şule Işık')).to_be_visible()
+    form.get_by_role('button', name='Vazgeç').click()
+    expect(form).to_have_count(0)
+    sayfa.locator('[data-satir="s_1"]').click()
+    duzenle = sayfa.get_by_role('dialog', name='Düzenle')
+    expect(duzenle.get_by_label('Şule Işık')).to_be_visible()
+    expect(duzenle.get_by_label('Ali Veli')).to_be_checked()

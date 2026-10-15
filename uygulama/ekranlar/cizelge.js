@@ -240,7 +240,7 @@ export function ekranCiz(kok, baglam) {
   }
 
   function formAc(satir) {
-    mesaiFormuAc({ baglam, satir, calisanlar: veri?.calisanlar ?? null, degisince });
+    mesaiFormuAc({ baglam, satir, degisince }); // pencere çalışan listesini kendisi taze okur
   }
 
   // Çıktının girdisi: ay, çalışanlar ve ayarlar tek seferde taze okunur (liste de tazelenir).
